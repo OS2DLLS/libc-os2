@@ -22,6 +22,11 @@ Boston, MA 02111-1307, USA.  */
 
 #pragma GCC diagnostic ignored "-Wunused-but-set-variable"
 
+#if !defined __EMX__ && !defined __APPLE__
+/* disable to include sys/types.h of EMX */
+#define _SYS__TYPES_H_
+#endif
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
@@ -107,6 +112,10 @@ static void lib_error (void) NORETURN2;
 static void write_a_import (const char *func_name, const char *mod_name,
     int ordinal, const char *proc_name);
 
+
+#ifndef __EMX__
+#include "crossemx.h"
+#endif
 
 static void usage (void)
 {
@@ -623,7 +632,7 @@ static void finish_ar (void)
 static dword aout_str_size;
 static char aout_str_tab[2048];
 static int aout_sym_count;
-static struct nlist aout_sym_tab[6];
+static struct ninfo aout_sym_tab[6];
 
 static byte aout_text[300];
 static int aout_text_size;
@@ -1350,13 +1359,13 @@ static void read_dll(const char *pszFilename)
         unsigned short e_cs;
         unsigned short e_lfarlc;
         unsigned short e_ovno;
-        unsigned long  e_sym_tab;
+        unsigned int   e_sym_tab;           /* komh: was unsigned long */
         unsigned short e_flags;
         unsigned short e_res;
         unsigned short e_oemid;
         unsigned short e_oeminfo;
         unsigned short e_res2[10];
-        unsigned long  e_lfanew;
+        unsigned int   e_lfanew;            /* komh: was unsigned long */
     }           doshdr;
 
 #define E32MAGIC    0x584c /* LX */
@@ -1370,50 +1379,50 @@ static void read_dll(const char *pszFilename)
         unsigned char   e32_magic[2];
         unsigned char   e32_border;
         unsigned char   e32_worder;
-        unsigned long   e32_level;
+        unsigned int    e32_level;          /* komh: was unsigned long */
         unsigned short  e32_cpu;
         unsigned short  e32_os;
-        unsigned long   e32_ver;
-        unsigned long   e32_mflags;
-        unsigned long   e32_mpages;
-        unsigned long   e32_startobj;
-        unsigned long   e32_eip;
-        unsigned long   e32_stackobj;
-        unsigned long   e32_esp;
-        unsigned long   e32_pagesize;
-        unsigned long   e32_pageshift;
-        unsigned long   e32_fixupsize;
-        unsigned long   e32_fixupsum;
-        unsigned long   e32_ldrsize;
-        unsigned long   e32_ldrsum;
-        unsigned long   e32_objtab;
-        unsigned long   e32_objcnt;
-        unsigned long   e32_objmap;
-        unsigned long   e32_itermap;
-        unsigned long   e32_rsrctab;
-        unsigned long   e32_rsrccnt;
-        unsigned long   e32_restab;
-        unsigned long   e32_enttab;
-        unsigned long   e32_dirtab;
-        unsigned long   e32_dircnt;
-        unsigned long   e32_fpagetab;
-        unsigned long   e32_frectab;
-        unsigned long   e32_impmod;
-        unsigned long   e32_impmodcnt;
-        unsigned long   e32_impproc;
-        unsigned long   e32_pagesum;
-        unsigned long   e32_datapage;
-        unsigned long   e32_preload;
-        unsigned long   e32_nrestab;
-        unsigned long   e32_cbnrestab;
-        unsigned long   e32_nressum;
-        unsigned long   e32_autodata;
-        unsigned long   e32_debuginfo;
-        unsigned long   e32_debuglen;
-        unsigned long   e32_instpreload;
-        unsigned long   e32_instdemand;
-        unsigned long   e32_heapsize;
-        unsigned long   e32_stacksize;
+        unsigned int    e32_ver;            /* komh: was unsigned long */
+        unsigned int    e32_mflags;         /* komh: was unsigned long */
+        unsigned int    e32_mpages;         /* komh: was unsigned long */
+        unsigned int    e32_startobj;       /* komh: was unsigned long */
+        unsigned int    e32_eip;            /* komh: was unsigned long */
+        unsigned int    e32_stackobj;       /* komh: was unsigned long */
+        unsigned int    e32_esp;            /* komh: was unsigned long */
+        unsigned int    e32_pagesize;       /* komh: was unsigned long */
+        unsigned int    e32_pageshift;      /* komh: was unsigned long */
+        unsigned int    e32_fixupsize;      /* komh: was unsigned long */
+        unsigned int    e32_fixupsum;       /* komh: was unsigned long */
+        unsigned int    e32_ldrsize;        /* komh: was unsigned long */
+        unsigned int    e32_ldrsum;         /* komh: was unsigned long */
+        unsigned int    e32_objtab;         /* komh: was unsigned long */
+        unsigned int    e32_objcnt;         /* komh: was unsigned long */
+        unsigned int    e32_objmap;         /* komh: was unsigned long */
+        unsigned int    e32_itermap;        /* komh: was unsigned long */
+        unsigned int    e32_rsrctab;        /* komh: was unsigned long */
+        unsigned int    e32_rsrccnt;        /* komh: was unsigned long */
+        unsigned int    e32_restab;         /* komh: was unsigned long */
+        unsigned int    e32_enttab;         /* komh: was unsigned long */
+        unsigned int    e32_dirtab;         /* komh: was unsigned long */
+        unsigned int    e32_dircnt;         /* komh: was unsigned long */
+        unsigned int    e32_fpagetab;       /* komh: was unsigned long */
+        unsigned int    e32_frectab;        /* komh: was unsigned long */
+        unsigned int    e32_impmod;         /* komh: was unsigned long */
+        unsigned int    e32_impmodcnt;      /* komh: was unsigned long */
+        unsigned int    e32_impproc;        /* komh: was unsigned long */
+        unsigned int    e32_pagesum;        /* komh: was unsigned long */
+        unsigned int    e32_datapage;       /* komh: was unsigned long */
+        unsigned int    e32_preload;        /* komh: was unsigned long */
+        unsigned int    e32_nrestab;        /* komh: was unsigned long */
+        unsigned int    e32_cbnrestab;      /* komh: was unsigned long */
+        unsigned int    e32_nressum;        /* komh: was unsigned long */
+        unsigned int    e32_autodata;       /* komh: was unsigned long */
+        unsigned int    e32_debuginfo;      /* komh: was unsigned long */
+        unsigned int    e32_debuglen;       /* komh: was unsigned long */
+        unsigned int    e32_instpreload;    /* komh: was unsigned long */
+        unsigned int    e32_instdemand;     /* komh: was unsigned long */
+        unsigned int    e32_heapsize;       /* komh: was unsigned long */
+        unsigned int    e32_stacksize;      /* komh: was unsigned long */
         unsigned char   e32_res3[20];
     }           os2hdr;
 #pragma pack()
@@ -1473,7 +1482,11 @@ int main (int argc, char *argv[])
   struct predef *pp1;
   char *q, *ext, *opt_o;
 
+#ifdef __EMX__
   _response (&argc, &argv);
+#else
+  expandargv (&argc, &argv);
+#endif
   predefs = NULL; out_base = NULL; as_name = NULL; pipe_flag = FALSE;
   profile_flag = FALSE; page_size = 16;
   opt_b = FALSE; opt_q = FALSE; opt_s = FALSE; base_len = 0; opt_o = NULL;

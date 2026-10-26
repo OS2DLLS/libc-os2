@@ -351,7 +351,7 @@ static void new_print(FILE *phfile, struct new_symgrp *psymgrp)
             cch += fprintf (phfile, " NONAME");
 
           /* comments - the first one might be used by emximp later... */
-          fprintf (phfile, "  ; magicseg='%s' len=%d",
+          fprintf (phfile, "  ; magicseg='%s' len=%zu",
                    psymgrp->name ? psymgrp->name : "", strlen(psym->name));
           if (psym->fweak)
               fprintf (phfile, "  weak");
@@ -428,9 +428,9 @@ static void process_aout (FILE *inp_file, long size)
   byte *inp_buf;
   const struct exec *a_out_h;
   const byte *sym;
-  const struct nlist *sym_ptr;
+  const struct ninfo *sym_ptr;
   const byte *str_ptr;
-  long str_size;
+  int str_size;                 /* komh: was long */
   int sym_count, i;
   const char *name;
 
@@ -449,9 +449,9 @@ static void process_aout (FILE *inp_file, long size)
   str_ptr = sym + a_out_h->a_syms;
   if (str_ptr + 4 - inp_buf > size)
     error ("Malformed input file `%s'", inp_fname);
-  str_size = *(long *)str_ptr;
-  sym_ptr = (const struct nlist *)sym;
-  sym_count = a_out_h->a_syms / sizeof (struct nlist);
+  str_size = *(int *)str_ptr;
+  sym_ptr = (const struct ninfo *)sym;
+  sym_count = a_out_h->a_syms / sizeof (struct ninfo);
   if (str_ptr + str_size - inp_buf > size)
     error ("Malformed input file `%s'", inp_fname);
 
@@ -953,8 +953,12 @@ int main (int argc, char **argv)
   int c, i;
   char *p;
 
+#ifdef __EMX__
   _response (&argc, &argv);
   _wildcard (&argc, &argv);
+#else
+  expandargv (&argc, &argv);
+#endif
   opterr = 0;
   optind = 0;
   while ((c = getopt (argc, argv, "no::uw")) != EOF)

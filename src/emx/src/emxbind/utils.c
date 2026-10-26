@@ -19,6 +19,10 @@ the Free Software Foundation, 59 Temple Place - Suite 330,
 Boston, MA 02111-1307, USA.  */
 
 
+#if !defined __EMX__ && !defined __APPLE__
+#define _SYS__TYPES_H_
+#endif
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
@@ -26,7 +30,12 @@ Boston, MA 02111-1307, USA.  */
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <errno.h>
+#ifdef __EMX__
 #include <io.h>
+#else
+#include <unistd.h>
+#endif
 #include "defs.h"
 #include "emxbind.h"
 
@@ -243,6 +252,83 @@ void my_change (struct file *dst, struct file *src)
   *dst = *src;
   src->ok = src->del = FALSE;
   my_seek (dst, 0);
+}
+
+
+/* Seek to the aout header. */
+
+int my_seek_hdr (struct file *f)
+{
+  struct
+    {
+      char magic[2];
+      char fill1[6];
+      unsigned short hdr_size;
+    } exe_hdr;
+  struct
+    {
+      char sig[16];
+      char bound;
+      char fill1;
+      unsigned short hdr_loc_lo;      /* cannot use long, alignment! */
+      unsigned short hdr_loc_hi;
+    } patch;
+  long original_pos;
+  int saved_errno;
+
+  original_pos = my_tell (f);
+  my_read (&exe_hdr, sizeof (exe_hdr), f);
+  if (memcmp (exe_hdr.magic, "MZ", 2) != 0)
+    {
+      my_seek (f, original_pos);
+      return 0;
+    }
+  my_seek (f, original_pos + 16 * exe_hdr.hdr_size);
+  my_read (&patch, sizeof (patch), f);
+  if (memcmp (patch.sig, "emx", 3) == 0)
+    my_seek (f, original_pos + patch.hdr_loc_lo + 65536L * patch.hdr_loc_hi);
+  else if (memcmp (patch.sig, "OS/2", 4) == 0)
+    {
+      struct
+        {
+          short fill1[12];
+          unsigned short lfarlc;
+          short fill2[17];
+          long lfanew;
+        } mz_hdr;
+      struct
+        {
+          char magic[2];
+          char fill1[2];
+          long fill2[31];
+          unsigned long data_page;
+        } lx_hdr;
+
+      /* rewind */
+      my_seek (f, original_pos);
+      my_read (&mz_hdr, sizeof (mz_hdr), f);
+      /* check if a LX header exists */
+      if (mz_hdr.lfarlc != 0x40)
+        goto failure;
+      /* seek to the LX header */
+      my_seek (f, mz_hdr.lfanew);
+      my_read (&lx_hdr, sizeof (lx_hdr), f);
+      /* check if real LX header */
+      if (memcmp (&lx_hdr.magic, "LX", 2) != 0)
+        goto failure;
+      /* seek to the aout header with ZMAGIC */
+      my_seek (f, lx_hdr.data_page - 1024);
+      return 0;
+    }
+  else
+    goto failure;
+  return 0;
+
+failure:
+  saved_errno = errno;
+  my_seek (f, original_pos);
+  errno = saved_errno;
+  return -1;
 }
 
 

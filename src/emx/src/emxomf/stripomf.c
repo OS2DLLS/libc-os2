@@ -32,9 +32,15 @@
 #include <string.h>
 #ifdef __EMX__
 #include <io.h>
+#else
+#include <unistd.h>
 #endif
 #include <sys/omflib.h>
 #include "defs.h"
+
+#ifndef __EMX__
+#include "crossemx.h"
+#endif
 
 /*******************************************************************************
 *   Defined Constants And Macros                                               *
@@ -325,8 +331,12 @@ int main(int argc, char **argv)
     int argi;
 
     pszPgm = mybasename(argv[0]);
+#ifdef __EMX__
     _response (&argc, &argv);
     _wildcard (&argc, &argv);
+#else
+    expandargv (&argc, &argv);
+#endif
 
 #ifdef __EMX__
     if (_isterm (1))

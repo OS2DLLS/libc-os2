@@ -7,6 +7,11 @@
 #include <string.h>
 #include "omflib0.h"
 #include <sys/omflib.h>
+#include <errno.h>
+
+#ifndef __EMX__
+#include "crossemx.h"
+#endif
 
 int omflib_set_error (char *error)
 {

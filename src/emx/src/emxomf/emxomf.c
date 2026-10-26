@@ -35,6 +35,8 @@ Boston, MA 02111-1307, USA.  */
 #include <sys/time.h>
 #include <ar.h>
 #include <assert.h>
+#include <errno.h>
+#include <unistd.h>
 
 /* Insert private header files. */
 
@@ -46,6 +48,10 @@ Boston, MA 02111-1307, USA.  */
 /* This header must come after defs.h */
 
 #include <sys/omflib.h>         /* Handling OMF libraries */
+
+#ifndef __EMX__
+#include "crossemx.h"
+#endif
 
 /* Flag bits for FLAGS field of the struct symbol structure. */
 
@@ -143,7 +149,7 @@ int sym_count = 0;
 /* The sym_ptr variable points to an array of a.out symbols.  There
    are sym_count table entries.  Note that this table is complemented
    by the sym_more table. */
-const struct nlist *sym_ptr = NULL;
+const struct ninfo *sym_ptr = NULL;
 
 /* The str_ptr variable points to the a.out string table.  The
    elements of sym_ptr contain offsets into this table.  The table
@@ -344,7 +350,7 @@ static struct symbol *sym_more;
 
 /* The length of the a.out string table, in bytes.  This value
    includes the 32-bit number at the start of the string table. */
-static long str_size;
+static int32_t str_size;
 
 /* omflib_write_module() stored the page number of the module to this
    variable. */
@@ -542,7 +548,7 @@ static inline int strip_underscore (const char *name)
    NOT_ENTRY is an entry index which is not to be found.
    FEXT is an indicator on whether or not we can find external symbols or
    not.  */
-const struct nlist *find_symbol_ex (const char *name, int not_entry, int fext)
+const struct ninfo *find_symbol_ex (const char *name, int not_entry, int fext)
 {
   int i, j, n, len, t;
 
@@ -579,7 +585,7 @@ const struct nlist *find_symbol_ex (const char *name, int not_entry, int fext)
    NAME.  On success, a pointer to the symbol table entry (in the
    array pointed to by sym_ptr) is returned.  If the symbol is not
    found, NULL is returned. */
-const struct nlist *find_symbol (const char *name)
+const struct ninfo *find_symbol (const char *name)
 {
   return find_symbol_ex (name, -1, 0);
 }
@@ -840,7 +846,7 @@ static int make_nstr (const char *pszName, size_t cch, char *pszOutBuf)
         pszOutBuf[SYMBOL_MAX_LENGTH + SYMBOL_HASH_LENGTH] = '\0';
 
         if (warning_level > 1)
-            warning ("Truncated symbol '%.*s' to '%.*s%s'", cch, pszName, SYMBOL_MAX_LENGTH, pszName, szHash);
+            warning ("Truncated symbol '%.*s' to '%.*s%s'", (int) cch, pszName, SYMBOL_MAX_LENGTH, pszName, szHash);
 
         cch = SYMBOL_MAX_LENGTH + SYMBOL_HASH_LENGTH;
     }
@@ -1144,7 +1150,7 @@ static void write_wkext (void)
  *                      This must be at least 256, the code make this assumption!
  * @remark I'm sorry this function is written in my coding style - not!
  */
-static const char *weak_process_name(const struct nlist *pSym, const char *pszOrgName, char *pachName, int cchName)
+static const char *weak_process_name(const struct ninfo *pSym, const char *pszOrgName, char *pachName, int cchName)
 {
     switch (pSym->n_type)
     {
@@ -1667,7 +1673,7 @@ static void write_seg (int index, int seg_name, byte *src, long seg_size,
             /* The relocation refers to a symbol.  Look into the
                symbol table to find the fixup type and target
                address. */
-            const struct nlist *sym = &sym_ptr[r->r_symbolnum];
+            const struct ninfo *sym = &sym_ptr[r->r_symbolnum];
 /*#ifdef DEBUG
             const char *psz = sym->n_un.n_strx + str_ptr;
 #endif*/
@@ -2303,7 +2309,7 @@ static int fetch_modstr (const struct relocation_info *rel, dword addr,
       struct modstr *p;
       byte *buf;
       const char *sym_name;
-      const struct nlist *m_sym = NULL;
+      const struct ninfo *m_sym = NULL;
       const struct exec *m_ao = NULL;
 
       /* We have to take the string from another module.  First try to
@@ -2349,12 +2355,12 @@ static int fetch_modstr (const struct relocation_info *rel, dword addr,
               t = buf + sizeof (struct exec);
               t += m_ao->a_text; t += m_ao->a_data;
               t += m_ao->a_trsize; t += m_ao->a_drsize;
-              m_sym = (const struct nlist *)t; t += m_ao->a_syms;
+              m_sym = (const struct ninfo *)t; t += m_ao->a_syms;
               m_str = t;
               if (m_str + 4 - buf > size)
                 break;
               m_str_size = *(long *)m_str;
-              m_sym_count = m_ao->a_syms / sizeof (struct nlist);
+              m_sym_count = m_ao->a_syms / sizeof (struct ninfo);
               if (m_str + m_str_size - buf > size)
                 break;
               for (i = 0; i < m_sym_count; ++i)
@@ -2737,7 +2743,7 @@ static int handle_import_i1 (void)
 static void make_export(const char *pszSymbol, size_t cchSymbol,
                         const char *pszExpName, size_t cchExpName, unsigned iOrdinal)
 {
-    const struct nlist *pSym;
+    const struct ninfo *pSym;
     char *pszSym = alloca(cchSymbol + 1);
     memcpy(pszSym, pszSymbol, cchSymbol);
     pszSym[cchSymbol] = '\0';
@@ -2845,12 +2851,14 @@ static void write_export (void)
 
 static void convert_filename (char *name)
 {
+#ifdef __EMX__
   while (*name != 0)
     {
       if (*name == '/')
         *name = '\\';
       ++name;
     }
+#endif
 }
 
 #if 0
@@ -2943,9 +2951,14 @@ static void get_mod_name (void)
     {
       getcwd(base_dir, sizeof(base_dir));
       len = strlen(base_dir);
+#ifdef __EMX__
       base_dir[len++] = '\\';
+#else
+      base_dir[len++] = '/';
+#endif
       base_dir[len] = '\0';
     }
+#ifdef __EMX__
   else if (   (base_dir[0] == '\\' ||  base_dir[0] == '/')
            &&  base_dir[1] != '\\' &&  base_dir[1] != '/') /* unc */
     {   /* make it absolute using current drive */
@@ -2954,6 +2967,7 @@ static void get_mod_name (void)
       base_dir[0] = _getdrive();
       base_dir[1] = ':';
     }
+#endif
 }
 
 
@@ -3457,7 +3471,7 @@ static void list_unknown_stabs (void)
 static void o_to_omf (long size)
 {
   byte *t;
-  const struct nlist *entry_symbol;
+  const struct ninfo *entry_symbol;
   struct set *set_ptr;
   int j;
 
@@ -3482,7 +3496,7 @@ static void o_to_omf (long size)
   data_ptr = t; t += data_size;
   text_rel = (const struct relocation_info *)t; t += a_out_h->a_trsize;
   data_rel = (const struct relocation_info *)t; t += a_out_h->a_drsize;
-  sym_ptr = (const struct nlist *)t; t += a_out_h->a_syms;
+  sym_ptr = (const struct ninfo *)t; t += a_out_h->a_syms;
   str_ptr = t;
   if (a_out_h->a_syms == 0)
     str_size = 0;
@@ -3490,9 +3504,9 @@ static void o_to_omf (long size)
     {
       if (str_ptr + 4 - inp_buf > size)
         goto invalid;
-      str_size = *(long *)str_ptr;
+      str_size = *(int32_t *)str_ptr;
     }
-  sym_count = a_out_h->a_syms / sizeof (struct nlist);
+  sym_count = a_out_h->a_syms / sizeof (struct ninfo);
   if (str_ptr + str_size - inp_buf > size)
     goto invalid;
 
@@ -3779,9 +3793,13 @@ static void open_output (void)
         fprintf (response_file, " &\n");
       tmp = alloca (strlen (out_fname) + 1);
       strcpy (tmp, out_fname);
+#ifdef __EMX__
       for (p = tmp; *p != 0; ++p)
         if (*p == '/')
           *p = '\\';
+#else
+      (void) p; /* komh: make compiler happy */
+#endif
       fprintf (response_file, "%s %s", (response_replace ? "-+" : "+"), tmp);
     }
 }
@@ -4143,18 +4161,24 @@ int main (int argc, char *argv[])
   char *opt_o, *opt_O, *tmp;
   struct libreq *lrp;
 
+#ifdef __EMX__
   /* Keep emxomf in memory for the number of minutes indicated by the
      GCCLOAD environment variable. */
 
   _emxload_env ("GCCLOAD");
+#endif
 
   /* Get options from the EMXOMFOPT environment variable, expand
      response files (@filename) and wildcard (*.o) on the command
      line. */
 
   _envargs (&argc, &argv, "EMXOMFOPT");
+#ifdef __EMX__
   _response (&argc, &argv);
   _wildcard (&argc, &argv);
+#else
+  expandargv (&argc, &argv);
+#endif
 
   /* Set default values of some options. */
 

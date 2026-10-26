@@ -10,6 +10,10 @@
 #include <sys/omflib.h>
 
 
+#ifndef __EMX__
+#include "crossemx.h"
+#endif
+
 struct omflib *omflib_open (const char *fname, char *error)
 {
   FILE *f;

@@ -13,7 +13,7 @@ extern "C" {
 #define _BYTE_WORD_DWORD
 typedef unsigned char byte;
 typedef unsigned short word;
-typedef unsigned long dword;
+typedef unsigned int dword;     /* komh: was unsigned long */
 #endif /* _BYTE_WORD_DWORD */
 
 #if !defined (THEADR)

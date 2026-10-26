@@ -29,14 +29,14 @@ extern void warning (const char *fmt, ...) ATTR_PRINTF (1, 2);
 extern void *xmalloc (size_t n);
 void *xrealloc (void *ptr, size_t n);
 char *xstrdup (const char *s);
-extern const struct nlist *find_symbol (const char *name);
-extern const struct nlist *find_symbol_ex (const char *name, int not_entry, int fext);
+extern const struct ninfo *find_symbol (const char *name);
+extern const struct ninfo *find_symbol_ex (const char *name, int not_entry, int fext);
 extern void set_hll_type (int index, int hll_type);
 
 /* These variables are defined in emxomf.c. */
 
 extern int sym_count;
-extern const struct nlist *sym_ptr;
+extern const struct ninfo *sym_ptr;
 extern const byte *str_ptr;
 extern byte *text_ptr;
 extern long text_size;

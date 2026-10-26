@@ -26,9 +26,13 @@ Boston, MA 02111-1307, USA.  */
 #include <string.h>
 #include <getopt.h>
 #include <sys/moddef.h>
+#include <errno.h>
 #include "defs.h"
 #include "emxbind.h"
 
+#ifndef __EMX__
+#include "crossemx.h"
+#endif
 
 /* The name of the module definition file (set by the -d option) or
    NULL (if there is no module definition file).  If it's the empty
@@ -82,6 +86,7 @@ static void usage (void)
   puts ("  -h<size>    set heap size for OS/2 (-b only)");
   puts ("  -k<size>    set stack size for OS/2 (-b only)");
   puts ("  -m<map>     write .map file (-b only)");
+  puts ("  -y          write .sym file (-b and -m)");
   puts ("  -r<res>     add resources (-b only)");
   exit (1);
 }
@@ -146,7 +151,7 @@ static int md_callback (struct _md *md, const _md_stmt *stmt, _md_token token,
         exp.internalname = xstrdup (stmt->export.entryname);
       exp.offset = 0;
       exp.object = 0;
-      add_export (&exp);
+      add_export (&exp, TRUE);
       break;
 
     case _MD_HEAPSIZE:
@@ -301,7 +306,7 @@ static void file_name (char *dst, const char *ext, const char *def)
     char *curext = _getext2 (dst);
     if (curext && *curext == '.')
       curext++;
-    if (strcmp (curext, ext))
+    if (!(mode == 's' && stricmp (curext, "dll") == 0) && strcmp (curext, ext))
     {
       if (strlen (dst) > FNAME_SIZE - 5)
         error ("file name too long");
@@ -337,7 +342,7 @@ static void get_args (void)
   /* Examine the initial (emxbind) options, one by one. */
 
   while ((c = getopt (gargc, gargv,
-                      "bc::d::efh:k:m:o:pqr:svw")) != -1)
+                      "bc::d::efh:k:m:o:pqr:svwy")) != -1)
     {
       switch (c)
 	{
@@ -409,6 +414,9 @@ static void get_args (void)
 	case 'w':
 	  opt_w = TRUE;
 	  break;
+	case 'y':
+	  opt_y = TRUE;
+	  break;
 	default:
 	  error ("invalid option");
 	}
@@ -472,7 +480,8 @@ static void get_args (void)
 	  _defext (def_fname, "def");
           read_def_file ();
 	}
-      file_name (out_fname, (dll_flag ? "dll" : "exe"),
+      file_name (out_fname, (opt_o != NULL && _getext(opt_o)) ? NULL :
+                            (dll_flag ? "dll" : "exe"),
                  (opt_o != NULL ? opt_o : inp_fname));
       if (stricmp (inp_fname, out_fname) == 0)
         error ("The input and output files have the same name");

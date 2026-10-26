@@ -8,7 +8,12 @@
 #include <errno.h>
 #include <sys/moddef.h>
 
+#ifdef __EMX__
 #define ERRNO (*_errno ())
+#else
+#include "crossemx.h"
+#define ERRNO errno
+#endif
 
 #define MDF_OPEN 0x0001
 
@@ -161,6 +166,9 @@ static int get_line (struct _md *md)
     }
   p = strchr (md->buffer, '\n');
   if (p != NULL) *p = 0;
+#ifndef __EMX__
+  if (p != NULL && p > md->buffer && p[-1] == '\r') *--p = 0;
+#endif
   md->ptr = md->buffer;
   ++md->linenumber;
   return 0;

@@ -6,18 +6,21 @@
 
 #ifndef __A_OUT_GNU_H__
 #define __A_OUT_GNU_H__
+
+#include <stdint.h>
+
 #define __GNU_EXEC_MACROS__
 #ifndef __STRUCT_EXEC_OVERRIDE__
 struct exec
 {
-  unsigned long a_info;		/* Use macros N_MAGIC, etc for access */
-  unsigned a_text;		/* length of text, in bytes */
-  unsigned a_data;		/* length of data, in bytes */
-  unsigned a_bss;		/* length of uninitialized data area for file, in bytes */
-  unsigned a_syms;		/* length of symbol table data in file, in bytes */
-  unsigned a_entry;		/* start address */
-  unsigned a_trsize;		/* length of relocation info for text, in bytes */
-  unsigned a_drsize;		/* length of relocation info for data, in bytes */
+  uint32_t a_info;		/* Use macros N_MAGIC, etc for access */
+  uint32_t a_text;		/* length of text, in bytes */
+  uint32_t a_data;		/* length of data, in bytes */
+  uint32_t a_bss;		/* length of uninitialized data area for file, in bytes */
+  uint32_t a_syms;		/* length of symbol table data in file, in bytes */
+  uint32_t a_entry;		/* start address */
+  uint32_t a_trsize;	/* length of relocation info for text, in bytes */
+  uint32_t a_drsize;	/* length of relocation info for data, in bytes */
 };
 #endif /* __STRUCT_EXEC_OVERRIDE__ */
 /* these go in the N_MACHTYPE field */
@@ -87,16 +90,26 @@ enum machine_type {
 /* Address of bss segment in memory after it is loaded.  */
 #define N_BSSADDR(x) (N_DATADDR(x) + (x).a_data)
 
+struct ninfo {
+  union {
+    int32_t n_strx;
+  } n_un;
+  uint8_t n_type;
+  int8_t n_other;
+  int16_t n_desc;
+  uint32_t n_value;
+};
+
 struct nlist {
   union {
     char *n_name;
     struct nlist *n_next;
-    long n_strx;
+    int32_t n_strx;
   } n_un;
-  unsigned char n_type;
-  char n_other;
-  short n_desc;
-  unsigned long n_value;
+  uint8_t n_type;
+  int8_t n_other;
+  int16_t n_desc;
+  uintptr_t n_value;
 };
 #define N_UNDF 0
 #define N_ABS 2
@@ -150,26 +163,26 @@ struct nlist {
 struct relocation_info
 {
   /* Address (within segment) to be relocated.  */
-  int r_address;
+  int32_t r_address;
   /* The meaning of r_symbolnum depends on r_extern.  */
-  unsigned int r_symbolnum:24;
+  uint32_t r_symbolnum:24;
   /* Nonzero means value is a pc-relative offset
      and it should be relocated for changes in its own address
      as well as for changes in the symbol or section specified.  */
-  unsigned int r_pcrel:1;
+  uint32_t r_pcrel:1;
   /* Length (as exponent of 2) of the field to be relocated.
      Thus, a value of 2 indicates 1<<2 bytes.  */
-  unsigned int r_length:2;
+  uint32_t r_length:2;
   /* 1 => relocate with value of symbol.
           r_symbolnum is the index of the symbol
 	  in file's the symbol table.
      0 => relocate with the address of a segment.
           r_symbolnum is N_TEXT, N_DATA, N_BSS or N_ABS
 	  (the N_EXT bit may be set also, but signifies nothing).  */
-  unsigned int r_extern:1;
+  uint32_t r_extern:1;
   /* Four bits that aren't used, but when writing an object file
      it is desirable to clear them.  */
-  unsigned int r_pad:4;
+  uint32_t r_pad:4;
 };
 
 #endif /* __A_OUT_GNU_H__ */

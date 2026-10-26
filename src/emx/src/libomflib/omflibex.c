@@ -8,6 +8,9 @@
 #include "omflib0.h"
 #include <sys/omflib.h>
 
+#ifndef __EMX__
+#include "crossemx.h"
+#endif
 
 int omflib_extract (struct omflib *p, const char *name, char *error)
 {

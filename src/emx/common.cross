@@ -1,0 +1,175 @@
+## @file
+#
+# Common makefile to cross-compile emx-tools.
+#
+# Copyright (c) 2026 KO Myung-Hun <komh78@gmail.com>
+#
+#
+# This file is part of InnoTek LIBC.
+#
+# InnoTek LIBC is free software; you can redistribute it and/or modify
+# it under the terms of the GNU Lesser General Public License as published
+# by the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+#
+# InnoTek LIBC is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public License
+# along with InnoTek LIBC; if not, write to the Free Software
+# Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+#
+#
+
+ifeq ($(EMXDIR),)
+$(error EMXDIR is required!)
+endif
+
+ifeq ($(SRCDIR),)
+$(error SRCDIR is required!)
+endif
+
+include $(EMXDIR)/version.smak
+
+OUTDIR ?= $(if $(OS2EMX_BUILD_ROOT),$(patsubst %/,%,$(OS2EMX_BUILD_ROOT))/cross-os2emx/emxtools/i686-pc-os2-emx,$(EMXDIR)/out/i686-pc-os2-emx)
+
+CC := gcc
+CFLAGS := -std=gnu99 -D_GNU_SOURCE -Wall -I. -I$(SRCDIR) \
+          -idirafter $(EMXDIR)/src/libcrossemx \
+          -idirafter $(EMXDIR)/src/include -idirafter $(EMXDIR)/include \
+          $(CFLAGS.DEF.VERSION) -g
+
+LD := gcc
+LDFLAGS := -L$(OUTDIR)
+LDLIBS := -lomflib -lmoddef -lcrossemx
+
+ifneq ($(BINUTILSDIR),)
+CFLAGS := -I$(BINUTILSDIR)/include $(CFLAGS)
+BINUTILSBUILDDIR ?= $(if $(OS2EMX_BUILD_ROOT),$(patsubst %/,%,$(OS2EMX_BUILD_ROOT))/cross-os2emx/binutils,$(BINUTILSDIR)/build)
+LDFLAGS := $(LDFLAGS) \
+           -L$(BINUTILSDIR)/libiberty -L$(BINUTILSBUILDDIR)/libiberty
+LDLIBS := $(LDLIBS) -liberty
+endif
+
+AR := ar
+ARFLAGS := cru
+
+DEPEXT := .d
+OBJEXT := .o
+EXEEXT :=
+LIBEXT := .a
+
+.SUFFIXES: .c $(DEPEXT) $(OBJEXT) $(EXEEXT) $(LIBEXT)
+
+PREFIXROOT := $(HOME)
+PREFIX := $(patsubst %/,%,$(PREFIXROOT))/opt/os2emx
+BINDIR := $(PREFIX)/bin
+LIBDIR := $(PREFIX)/lib
+INCDIR := $(PREFIX)/include
+
+TARGETSPEC := i686-pc-os2-emx
+TARGETPREFIX := $(PREFIX)/$(TARGETSPEC)
+TARGETBINDIR := $(TARGETPREFIX)/bin
+TARGETLIBDIR := $(TARGETPREFIX)/lib
+TARGETINCDIR := $(TARGETPREFIX)/include
+
+MKDIR_P := mkdir -p
+RM := rm -f
+INSTALL := install
+LN_S := ln -s
+
+CLEANFILES :=
+
+define exe_template
+$(1)_OBJS := $(addprefix $(OUTDIR)/, $(addsuffix $(OBJEXT), $($(1)_SRCS)))
+$(1)_DEPS := $(addprefix $(OUTDIR)/, $(addsuffix $(DEPEXT), $($(1)_SRCS)))
+
+$$($(1)_OBJS) $$($(1)_DEPS): CFLAGS += $($(1)_CFLAGS)
+
+$(1)_TARGET := $(OUTDIR)/$(1)$(EXEEXT)
+
+$$($(1)_TARGET): $$($(1)_OBJS)
+	$(LD) $(LDFLAGS) $$($(1)_LDFLAGS) -o $$@ $$($(1)_OBJS) $(LDLIBS) $$($(1)_LDLIBS)
+
+all: $$($(1)_TARGET)
+
+install-exe: $$($(1)_TARGET)
+
+install: install-exe
+
+ifeq ($(filter %clean,$(MAKECMDGOALS)),)
+-include $$($(1)_DEPS)
+endif
+
+CLEANFILES += $$($(1)_OBJS) $$($(1)_DEPS) $$($(1)_TARGET)
+endef
+
+define lib_template
+$(1)_OBJS := $(addprefix $(OUTDIR)/, $(addsuffix $(OBJEXT), $($(1)_SRCS)))
+$(1)_DEPS := $(addprefix $(OUTDIR)/, $(addsuffix $(DEPEXT), $($(1)_SRCS)))
+
+$$($(1)_OBJS) $$($(1)_DEPS): CFLAGS += $($(1)_CFLAGS)
+
+$(1)_TARGET := $(OUTDIR)/$(1)$(LIBEXT)
+
+$$($(1)_TARGET): $$($(1)_OBJS)
+	$(AR) $(ARFLAGS) $$($(1)_ARFLAGS) $$@ $$($(1)_OBJS)
+
+all: $$($(1)_TARGET)
+
+install-lib: $$($(1)_TARGET)
+
+#install: install-lib
+
+ifeq ($(filter %clean,$(MAKECMDGOALS)),)
+-include $$($(1)_DEPS)
+endif
+
+CLEANFILES += $$($(1)_OBJS) $$($(1)_DEPS) $$($(1)_TARGET)
+endef
+
+$(shell $(MKDIR_P) $(OUTDIR))
+
+$(OUTDIR)/%.c$(DEPEXT): $(SRCDIR)/%.c
+	$(CC) $(CFLAGS) -M -MP -MT "$(@:$(DEPEXT)=$(OBJEXT)) $@" -MF $@ $<
+
+$(OUTDIR)/%.c$(OBJEXT): $(SRCDIR)/%.c
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+.PHONY: all clean install install-exe install-lib
+
+all:
+
+clean:
+	$(RM) $(CLEANFILES)
+
+install-exe:
+	$(INSTALL) -d $(DESTDIR)$(TARGETBINDIR)
+	$(INSTALL) -d $(DESTDIR)$(BINDIR)
+	for f in $^; do \
+	  $(INSTALL) $$f $(DESTDIR)$(TARGETBINDIR); \
+	  n=$$(basename $$f); \
+	  if test "$$n" != "os2stub.bin" -a \
+	          "$$n" != "ldstub.bin" ; then \
+		 $(LN_S) -f ../$(TARGETSPEC)/bin/$$n \
+	                $(DESTDIR)$(BINDIR)/$(TARGETSPEC)-$$n; \
+	  fi; \
+	  if test "$$n" != "ld"$(EXEEXT) -a \
+	          "$$n" != "os2stub.bin" -a \
+	          "$$n" != "ldstub.bin" ; then \
+	    $(LN_S) -f ../$(TARGETSPEC)/bin/$$n \
+	               $(DESTDIR)$(BINDIR)/$$n; \
+	  fi; \
+	done
+
+intall-lib:
+	$(INSTALL) -d $(DESTDIR)$(TARGETLIBDIR)
+	for f in $^; do \
+	  $(INSTALL) $$f $(DESTDIR)$(TARGETLIBDIR); \
+	done
+
+install: all
+
+$(foreach t, $(TARGETEXES), $(eval $(call exe_template,$(t))))

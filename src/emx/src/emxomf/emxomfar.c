@@ -18,15 +18,26 @@ along with emxomfar; see the file COPYING.  If not, write to
 the Free Software Foundation, 59 Temple Place - Suite 330,
 Boston, MA 02111-1307, USA.  */
 
+#if !defined __EMX__ && !defined __APPLE__
+/* disable to include sys/types.h of EMX */
+#define _SYS__TYPES_H_
+#endif
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#ifdef __EMX__
 #include <io.h>
+#else
+#include <unistd.h>
+#endif
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/omflib.h>
 
+#ifndef __EMX__
+#include "crossemx.h"
+#endif
 
 #define FALSE 0
 #define TRUE  1
@@ -248,8 +259,12 @@ int main (int argc, char *argv[])
 
   /* Expand response files and wildcards on th command line. */
 
+#ifdef __EMX__
   _response (&argc, &argv);
   _wildcard (&argc, &argv);
+#else
+  expandargv (&argc, &argv);
+#endif
 
   /* The default page size was 16, now we'll calculate one with 
      a minimum of 16. */

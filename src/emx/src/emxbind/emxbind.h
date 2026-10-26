@@ -212,6 +212,10 @@ EXTERN int opt_s INIT (FALSE);
 
 EXTERN int opt_w INIT (FALSE);
 
+/* Create a symbol file.  This flag is set by the -y option. */
+
+EXTERN int opt_y INIT (FALSE);
+
 /* The module name. */
 
 EXTERN char *module_name INIT (NULL);
@@ -286,7 +290,7 @@ EXTERN long a_in_pos;
 
 /* The size of the string table in the source a.out (sub)file. */
 
-EXTERN long a_in_str_size;
+EXTERN int a_in_str_size;       /* komh: was long */
 
 /* The offsets of the data section and symbol table, respectively, of
    the source a.out (sub)file. */
@@ -338,7 +342,7 @@ EXTERN struct relocation_info *dr_image INIT (NULL);
 /* This array contains the symbol table, as read from the source a.out
    file. */
 
-EXTERN struct nlist *sym_image INIT (NULL);
+EXTERN struct ninfo *sym_image INIT (NULL);
 
 /* This array contains the string table, as read from the source a.out
    file. */
@@ -482,7 +486,7 @@ void copy (struct file *src, long size);
 /* fixup.c */
 
 void build_sym_hash_table (void);
-struct nlist *find_symbol (const char *name);
+struct ninfo *find_symbol (const char *name);
 void sort_fixup (void);
 void create_fixup (const struct fixup *fp, int neg);
 void relocations (void);
@@ -491,7 +495,7 @@ void put_impmod (void);
 
 /* export.c */
 
-void add_export (const struct export *exp);
+void add_export (const struct export *exp, int from_def);
 void entry_name (struct grow *table, const char *name, int ord);
 void exports (void);
 const struct export *get_export (int i);
@@ -531,6 +535,7 @@ void my_change (struct file *dst, struct file *src);
 void my_open (struct file *f, const char *name, enum open_mode mode);
 void my_close (struct file *f);
 void my_remove (struct file *f);
+int my_seek_hdr (struct file *f);
 int my_readable (const char *name);
 void *xmalloc (size_t n);
 void *xrealloc (void *p, size_t n);

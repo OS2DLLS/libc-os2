@@ -55,7 +55,11 @@ static void exe_type (void)
 
 static void strip_symbols (void)
 {
-  long size, pos, str_len;
+  long size, pos;
+  int str_len;                  /* komh: was long */
+
+  my_seek_hdr (&inp_file);
+  read_a_out_header ();
 
   pos = a_in_pos + a_in_sym;
   size = my_size (&inp_file);

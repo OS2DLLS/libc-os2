@@ -34,11 +34,16 @@ Boston, MA 02111-1307, USA.  */
    pool. */
 
 #include <stdlib.h>
+#include <stdint.h>
 #include <string.h>
 #include <ctype.h>
 #include <assert.h>
 #include "defs.h"
 #include "grow.h"
+
+#ifndef __EMX__
+#include "crossemx.h"
+#endif
 
 /* A program using this module has to define the following two
    functions: */
@@ -388,6 +393,6 @@ int strpool_len (const char *s)
     assert(((uintptr_t)s & (sizeof(int) - 1)) == 0);
     if (!s)
       return 0;
-    return ((size_t *)s)[-1];
+    return ((int *)s)[-1];
 }
 

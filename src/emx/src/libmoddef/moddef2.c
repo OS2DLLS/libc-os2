@@ -4,6 +4,10 @@
 #include <string.h>
 #include <sys/moddef.h>
 
+#ifndef __EMX__
+#include "crossemx.h"
+#endif
+
 #define FALSE 0
 #define TRUE  1
 

@@ -19,12 +19,19 @@ the Free Software Foundation, 59 Temple Place - Suite 330,
 Boston, MA 02111-1307, USA.  */
 
 
+#if !defined __EMX__ && !defined __APPLE__
+#define _SYS__TYPES_H_
+#endif
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include "defs.h"
 #include "emxbind.h"
 
+#ifndef __EMX__
+#include "crossemx.h"
+#endif
 
 /* Flags for resources. */
 
@@ -256,7 +263,7 @@ void write_res (void)
                         res_obj_count - res_preload_obj_count,
                         plural_s (res_obj_count - res_preload_obj_count));
 	    }
-	  printf ("  Writing:  %ld bytes in %lu page%s\n",
+	  printf ("  Writing:  %d bytes in %u page%s\n",
                   round_4 (rop->obj_size),
                   npages (rop->obj_size), plural_s (npages (rop->obj_size)));
 	}
@@ -264,7 +271,7 @@ void write_res (void)
       for (j = 0; j < rop->res_len; ++j)
 	{
 	  if (verbosity >= 2)
-	    printf ("    %d.%d (%lu byte%s)\n",
+	    printf ("    %d.%d (%u byte%s)\n",
                     rop->res[j].id, rop->res[j].type,
                     rop->res[j].length, plural_s (rop->res[j].length));
 	  fill (rop->res[j].offset - pos);

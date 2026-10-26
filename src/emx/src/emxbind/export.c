@@ -39,14 +39,25 @@ static int export_len = 0;
    Exporting a symbol with different external names triggers a warning
    message. */
 
-void add_export (const struct export *exp)
+void add_export (const struct export *exp, int from_def)
 {
   int i;
 
   for (i = 0; i < export_len; ++i)
     {
       if (strcmp (exp->entryname, export_data[i].entryname) == 0)
-        error ("export multiply defined: %s", exp->entryname);
+        {
+          if (from_def)
+            error ("export multiply defined: %s", exp->entryname);
+          else
+            {
+              /* Ignore export multiply defined by __declspec(dllexport). */
+              free (exp->entryname);
+              free (exp->internalname);
+              return;
+            }
+        }
+
       if ((verbosity >= 2) &&
           (strcmp (exp->internalname, export_data[i].internalname) == 0))
         printf ("emxbind: %s multiply exported (warning)\n",
@@ -137,7 +148,7 @@ void exports (void)
 {
   int i, j, n, ord, bundle;
   struct export *exp;
-  struct nlist *nl;
+  struct ninfo *nl;
   int *used;
   byte count;
   byte flags;
@@ -145,11 +156,78 @@ void exports (void)
   word object;
   dword offset;
 
+  read_sym ();
+
+  /* Add __declspec(dllexport) symbols */
+
+  for (i = 0; i < sym_count; i++)
+    {
+      struct export e;
+      const char *name;
+      const char *symbol;
+      const char *ordinal;
+      char *ordinal_end;
+      const char *sym_type;
+      int name_len;
+      int symbol_len;
+
+      if( sym_image[ i ].n_type != N_EXP )
+        continue;
+
+      /* dllexport: <exportname>,<ordinal>=<asmname>,<code|data> */
+
+      name = (char *)str_image + sym_image[i].n_un.n_strx;
+
+      /* find equal sign first, we'll use this for validating the ordinal. */
+      symbol = strchr (name, '=');
+      if (!symbol)
+          error ("Invalid export record: missing `='. \nstabs: %s", name);
+
+      /* ordinal */
+      ordinal = strchr (name, ',');
+      if (!ordinal || ordinal >= symbol)
+        error ("Invalid export record: missing ordinal.\nstabs: %s", name);
+      name_len = ordinal - name;
+      ordinal++;
+      ord = strtol (ordinal, &ordinal_end, 0);
+      if (ord < 0 || ord >= 0x10000)
+        error ("Invalid export record: ordinal value is out of range (0-65k):%d\nstabs:%s",
+               ord, name);
+      if (ordinal_end != symbol)
+        error ("Invalid export record: ordinal field doesn't end at`='.\nstabs:%s",
+               name);
+
+      /* type and symbol */
+      symbol++;
+      sym_type = strchr (symbol, ',');
+      if (!sym_type)
+        error("Invalid export record: Symbol type is missing\nstabs:%s", name);
+      symbol_len = sym_type - symbol;
+      sym_type++;
+      if (strcmp (sym_type, "code") && strcmp (sym_type, "data") &&
+          strcmp (sym_type, "bss") && strcmp (sym_type, "common"))
+        error("Invalid export record: Invalid symbol type: %s\nstabs:%s",
+              sym_type, name);
+      if (!name_len)
+        error("Invalid export record: No (internal) symbol name.\nstabs:%s",
+              name);
+
+      e.ord = ord;
+      e.resident = !e.ord;
+      e.entryname = xstrdup (name);
+      e.entryname[name_len] = '\0';
+      e.flags = 0;
+      e.internalname = xstrdup (symbol);
+      e.internalname[symbol_len] = '\0';
+      e.offset = 0;
+      e.object = 0;
+      add_export (&e, FALSE);
+    }
+
   if (export_len != 0)
     {
       if (a_in_h.a_syms == 0 || a_in_str_size == 0)
         error ("need symbol table for EXPORTS");
-      read_sym ();
     }
 
   /* Search symbol table */

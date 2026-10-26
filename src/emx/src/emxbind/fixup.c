@@ -23,6 +23,7 @@ Boston, MA 02111-1307, USA.  */
 #include <stdlib.h>
 #include <string.h>
 #include <alloca.h>
+#include <errno.h>
 #include "defs.h"
 #include "emxbind.h"
 
@@ -101,7 +102,7 @@ void build_sym_hash_table (void)
    If the symbol is found, find_symbol() returns a pointer to the symbol
    table entry.  Otherwise, NULL is returned. */
 
-struct nlist *find_symbol (const char *name)
+struct ninfo *find_symbol (const char *name)
 {
   int j, len;
   const char *name1 = name;
@@ -575,7 +576,15 @@ void os2_fixup (void)
   my_seek (&inp_file, data_base + data_off);
   my_read (&set_len, sizeof (set_len), &inp_file);
   if (set_len != DATASEG_MAGIC)
-    error ("invalid data segment (does not start with 0x%x)", DATASEG_MAGIC);
+    {
+      my_seek (&inp_file, data_base + data_off + sizeof (dword) * 13);
+      my_read (&set_len, sizeof (set_len), &inp_file);
+      /* Check if os2_bind_header of old-EMX startup code */
+      if (set_len != 0x02000000         /* flags: a.out application */
+          && set_len != 0x02000001)     /* flags: a.out DLL */
+        error ("invalid data segment (does not start with 0x%x)", DATASEG_MAGIC);
+      my_seek (&inp_file, data_base + data_off + sizeof (dword) * 10);
+    }
   /* Now read the offset to the __os2_dll set */
   my_read (&set_len, sizeof (set_len), &inp_file);
 

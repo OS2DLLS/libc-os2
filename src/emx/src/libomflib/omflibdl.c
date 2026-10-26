@@ -9,6 +9,10 @@
 #include <sys/omflib.h>
 
 
+#ifndef __EMX__
+#include "crossemx.h"
+#endif
+
 int omflib_mark_deleted (struct omflib *p, const char *name, char *error)
 {
   char buf[256];

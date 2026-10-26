@@ -23,10 +23,17 @@ Boston, MA 02111-1307, USA.  */
 #include <stdlib.h>
 #include <string.h>
 #include <sys/moddef.h>
+#ifdef __EMX__
 #include <sys/user.h>
+#else
+#include "../../emx/include/sys/user.h"
+#endif
 #include "defs.h"
 #include "emxbind.h"
 
+#ifndef __EMX__
+#include "crossemx.h"
+#endif
 
 /* The first DOS EXE header read from emxl.exe or emx.exe. */
 
@@ -301,7 +308,7 @@ void read_sym (void)
       my_read (sym_image, a_in_h.a_syms, &inp_file);
       my_seek (&inp_file, a_in_str);
       my_read (str_image, a_in_str_size, &inp_file);
-      sym_count = a_in_h.a_syms / sizeof (struct nlist);
+      sym_count = a_in_h.a_syms / sizeof (struct ninfo);
       build_sym_hash_table ();
     }
 }

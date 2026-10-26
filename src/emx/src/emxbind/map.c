@@ -23,8 +23,15 @@ Boston, MA 02111-1307, USA.  */
 #include <stdlib.h>
 #include <string.h>
 #include <alloca.h>
+#ifdef __EMX__
+#include <process.h>
+#endif
 #include "defs.h"
 #include "emxbind.h"
+
+#ifndef __EMX__
+#include "crossemx.h"
+#endif
 
 struct map_sym
 {
@@ -128,7 +135,7 @@ static void map_publics (const char *title,
   qsort (map_sym_table, map_sym_count, sizeof (*map_sym_table), compare);
   for (i = 0; i < map_sym_count; ++i)
     if (map_sym_table[i].imp_mod == NULL)
-      fprintf (map_file, " %.4X:%.8lX       %s\n", map_sym_table[i].seg,
+      fprintf (map_file, " %.4X:%.8X       %s\n", map_sym_table[i].seg,
                map_sym_table[i].addr, map_sym_table[i].name);
     else if (map_sym_table[i].imp_name != NULL)
       fprintf (map_file, " %.4X:%.8lX  Imp  %-20s (%s.%s)\n", 0, 0L,
@@ -256,7 +263,7 @@ static void map_exports (void)
           seg = 0; break;
         }
       if (seg != 0)
-        fprintf (map_file, " %.4X:%.8lX %-23s %s\n",
+        fprintf (map_file, " %.4X:%.8X %-23s %s\n",
                  seg, p->offset, p->entryname, p->internalname);
     }
 }
@@ -270,6 +277,28 @@ static void map_entrypoint (void)
     fprintf (map_file, "\nProgram entry point at 0001:00000000\n");
 }
 
+
+/* Write the .sym file. */
+
+static void write_sym (const char *map_fname)
+{
+#ifdef __EMX__
+  char *comspec;
+
+  comspec = getenv ("COMSPEC");
+  if (comspec == NULL)
+    comspec = "cmd.exe";
+
+  /* Invoke mapsym.cmd. */
+  if (spawnlp (P_WAIT, comspec, comspec, "/c", "mapsym.cmd", "link386",
+               map_fname, NULL) == -1)
+    error ("cannot spawn mapsym.cmd");
+#else
+  /* Invoke kmapsym. */
+  if (spawnlp (P_WAIT, "kmapsym", "kmapsym", map_fname, NULL) == -1)
+    error ("cannot spawn kmapsym");
+#endif
+}
 
 /* Write the .map file. */
 
@@ -305,4 +334,7 @@ void write_map (const char *fname)
     error ("Cannot write `%s'", fname);
   if (fclose (map_file) != 0)
     error ("Cannot close `%s'", fname);
+
+  if (opt_y)
+    write_sym (fname);
 }

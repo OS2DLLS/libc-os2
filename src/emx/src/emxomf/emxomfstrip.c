@@ -25,6 +25,9 @@
 # include <io.h>
 # define ftruncate _chsize
 #endif
+#ifndef __EMX__
+#include "crossemx.h"
+#endif
 
 
 
@@ -292,10 +295,12 @@ int main(int argc, char **argv)
 #endif
 
     /* Get more arguments from EMXOMFSTRIPOPT and load reponse files and expand wildcards. */
-#ifdef __EMX__
     _envargs(&argc, &argv, "EMXOMFSTRIPOPT");
+#ifdef __EMX__
     _response(&argc, &argv);
     _wildcard(&argc, &argv);
+#else
+    expandargv (&argc, &argv);
 #endif
 
     /*

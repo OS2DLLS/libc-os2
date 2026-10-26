@@ -9,7 +9,7 @@
 #define _BYTE_WORD_DWORD
 typedef unsigned char byte;
 typedef unsigned short word;
-typedef unsigned long dword;
+typedef unsigned int dword;     /* komh: was unsigned long */
 #endif /* _BYTE_WORD_DWORD */
 
 #define FLAG_DELETED  0x0001
@@ -37,7 +37,7 @@ struct pubsym
 struct omflib
 {
   FILE *f;
-  long dict_offset;
+  int dict_offset;              /* komh: was long */
   int page_size;
   int dict_blocks;
   int flags;

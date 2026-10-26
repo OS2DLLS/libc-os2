@@ -32,6 +32,11 @@ Boston, MA 02111-1307, USA.  */
 #include <sys/omflib.h>
 #include <ar.h>
 #include <a_out.h>
+#include <errno.h>
+
+#ifndef __EMX__
+#include "crossemx.h"
+#endif
 
 #define GROW_DEF_STATIC(NAME,TYPE) \
   static struct grow NAME##_grow; \
@@ -89,7 +94,7 @@ struct extdef
 struct symbol
 {
   char *name;
-  struct nlist n;
+  struct ninfo n;
 };
 
 struct thread
@@ -1117,7 +1122,7 @@ static void conv_fixupp (void)
 static void make_symtab (void)
 {
   int i, j;
-  struct nlist n;
+  struct ninfo n;
   char skip;
 
   /* Important: Write extdefs first, to be able to use EXTDEF indices
@@ -1177,7 +1182,7 @@ static void write_symtab (void)
           symbols[i].n.n_un.n_strx = str_size;
           str_size += strlen (symbols[i].name) + 1;
         }
-      fwrite (&symbols[i].n, sizeof (struct nlist), 1, out_file);
+      fwrite (&symbols[i].n, sizeof (struct ninfo), 1, out_file);
     }
   fwrite (&str_size, sizeof (dword), 1, out_file);
   for (i = 0; i < GROW_COUNT (symbols); ++i)
@@ -1200,7 +1205,7 @@ static void conv_modend (void)
   h.a_text = (seg_code >= 0 ? segments[seg_code].size : 0);
   h.a_data = (seg_data >= 0 ? segments[seg_data].size : 0);
   h.a_bss =  (seg_bss  >= 0 ? segments[seg_bss ].size : 0);
-  h.a_syms = GROW_COUNT (symbols) * sizeof (struct nlist);
+  h.a_syms = GROW_COUNT (symbols) * sizeof (struct ninfo);
   h.a_entry = 0;
   h.a_trsize = GROW_COUNT (trelocs) * sizeof (struct relocation_info);
   h.a_drsize = GROW_COUNT (drelocs) * sizeof (struct relocation_info);
@@ -1350,8 +1355,12 @@ int main (int argc, char *argv[])
   /* Expand response files (@filename) and wildcard (*.o) on the
      command line. */
 
+#ifdef __EMX__
   _response (&argc, &argv);
   _wildcard (&argc, &argv);
+#else
+  expandargv (&argc, &argv);
+#endif
 
   /* Set default values of some options. */
 

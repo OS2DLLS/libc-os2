@@ -422,11 +422,11 @@ static void warning_parse (const char *pszFormat, ...)
       if (parse_ptr && parse_start && parse_ptr >= parse_start)
         {
           if (parse_pindex && *parse_pindex >= 0 && *parse_pindex < sym_count)
-            fprintf (stderr, "emxomf info: parsing sym no.%d type=%d at char '%c' in position %d:\n%s\n",
+            fprintf (stderr, "emxomf info: parsing sym no.%d type=%d at char '%c' in position %td:\n%s\n",
                      *parse_pindex, sym_ptr[*parse_pindex].n_type,
                      *parse_ptr, parse_ptr - parse_start, parse_start);
           else
-            fprintf (stderr, "emxomf info: parsing '%c' at position %d:\n%s\n",
+            fprintf (stderr, "emxomf info: parsing '%c' at position %td:\n%s\n",
                      *parse_ptr, parse_ptr - parse_start, parse_start);
         }
     }
@@ -602,7 +602,7 @@ static void sst_end (void)
    function also creates appropriate relocation table entries. */
 
 static void sst_static (const char *name, dword addr, int type_index,
-                        int sym_seg, int ext, const struct nlist *psym)
+                        int sym_seg, int ext, const struct ninfo *psym)
 {
   struct relocation_info r;
   size_t len = strlen (name);
@@ -653,27 +653,27 @@ static void sst_static (const char *name, dword addr, int type_index,
  */
 static inline unsigned type_hash (struct type *t)
 {
-  register unsigned uhash = 0;
+  register uintptr_t uhash = 0;
   switch (t->tag)
     {
-      case ty_alias:        uhash = (unsigned)t->d.alias; break;
-      case ty_stabs_ref:    uhash = (unsigned)t->d.stabs_ref; break;
-      case ty_prim:         uhash = (unsigned)t->index; break;
-      case ty_pointer:      uhash = (unsigned)t->d.pointer; break;
-      case ty_ref:          uhash = (unsigned)t->d.ref; break;
-      case ty_struc:        uhash = (unsigned)t->d.struc.name; break;
-      case ty_class:        uhash = (unsigned)t->d.class.name; break;
-      case ty_enu:          uhash = (unsigned)t->d.enu.name; break;
-      case ty_array:        uhash = (unsigned)t->d.array.etype; break;
-      case ty_bits:         uhash = (unsigned)t->d.bits.type; break;
-      case ty_func:         uhash = (unsigned)t->d.func.args ^ (unsigned)t->d.func.arg_count ^ (unsigned)t->d.func.ret ^ (unsigned)t->d.func.domain; break;
-      case ty_types:        uhash = (unsigned)t->d.types.count  << 3; break;
-      case ty_args:         uhash = (unsigned)t->d.args.count   << 3; break;
-      case ty_fields:       uhash = (unsigned)t->d.fields.count << 3; break;
-      case ty_member:       uhash = (unsigned)t->d.member.type ^ (unsigned)t->d.member.name >> 7; break;
-      case ty_values:       uhash = (unsigned)t->d.values.count << 3; break;
-      case ty_memfunc:      uhash = (unsigned)t->d.memfunc.type; break;
-      case ty_baseclass:    uhash = (unsigned)t->d.baseclass.type; break;
+      case ty_alias:        uhash = (uintptr_t)t->d.alias; break;
+      case ty_stabs_ref:    uhash = (uintptr_t)t->d.stabs_ref; break;
+      case ty_prim:         uhash = (uintptr_t)t->index; break;
+      case ty_pointer:      uhash = (uintptr_t)t->d.pointer; break;
+      case ty_ref:          uhash = (uintptr_t)t->d.ref; break;
+      case ty_struc:        uhash = (uintptr_t)t->d.struc.name; break;
+      case ty_class:        uhash = (uintptr_t)t->d.class.name; break;
+      case ty_enu:          uhash = (uintptr_t)t->d.enu.name; break;
+      case ty_array:        uhash = (uintptr_t)t->d.array.etype; break;
+      case ty_bits:         uhash = (uintptr_t)t->d.bits.type; break;
+      case ty_func:         uhash = (uintptr_t)t->d.func.args ^ (uintptr_t)t->d.func.arg_count ^ (uintptr_t)t->d.func.ret ^ (uintptr_t)t->d.func.domain; break;
+      case ty_types:        uhash = (uintptr_t)t->d.types.count  << 3; break;
+      case ty_args:         uhash = (uintptr_t)t->d.args.count   << 3; break;
+      case ty_fields:       uhash = (uintptr_t)t->d.fields.count << 3; break;
+      case ty_member:       uhash = (uintptr_t)t->d.member.type ^ (uintptr_t)t->d.member.name >> 7; break;
+      case ty_values:       uhash = (uintptr_t)t->d.values.count << 3; break;
+      case ty_memfunc:      uhash = (uintptr_t)t->d.memfunc.type; break;
+      case ty_baseclass:    uhash = (uintptr_t)t->d.baseclass.type; break;
       default:break; /* shut up warnings. */
     }
   uhash += t->tag;
@@ -3257,7 +3257,7 @@ static void hll_end (size_t patch_ptr, int add_start, size_t length)
 
 /* Return TRUE iff symbol table entry S defines a function. */
 
-static int is_fun (const struct nlist *s)
+static int is_fun (const struct ninfo *s)
 {
   const char *p;
 
@@ -3358,7 +3358,7 @@ static void block_end (int i)
    of the function.  proc_patch_base is used for remembering the place
    where to patch the SST entry. */
 
-static void define_fun (const struct nlist *symbol)
+static void define_fun (const struct ninfo *symbol)
 {
   struct type t, *t1, *t2, *t3;
   struct relocation_info r;
@@ -3540,7 +3540,7 @@ static void parse_symbol (int *index, int where, const char *msg, int flag)
 {
   char *name;
   const char *str, *p;
-  const struct nlist *symbol;
+  const struct ninfo *symbol;
   struct type *t1;
   int i, n, ti, alloc_flag;
 
@@ -3565,7 +3565,7 @@ static void parse_symbol (int *index, int where, const char *msg, int flag)
         case 'G':
           /* Static storage, global scope */
           {
-          const struct nlist *sym2 = NULL;
+          const struct ninfo *sym2 = NULL;
           ++parse_ptr;
           ti = hll_type ();
 #if defined (HLL_DEBUG)
@@ -3738,7 +3738,7 @@ static void parse_symbol (int *index, int where, const char *msg, int flag)
               break;
             default:
               if (warning_level > 1)
-                  warning ("Unknown register %lu", symbol->n_value);
+                  warning ("Unknown register %u", symbol->n_value);
               return;
             }
           sst_start (SST_reg);      /* Register variable */

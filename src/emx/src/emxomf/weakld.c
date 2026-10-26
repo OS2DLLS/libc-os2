@@ -86,11 +86,23 @@
      && !(pSym)->pszName[(_cchName)]                                                \
     )
 
+/** Generates break point */
+#ifndef __APPLE__
+#define INT3H() __asm__("int $3")
+#else
+#define INT3H() __builtin_trap()
+#endif
+
 
 
 /*******************************************************************************
 *   Header Files                                                               *
 *******************************************************************************/
+#if !defined __EMX__ && !defined __APPLE__
+/* disable to include sys/types.h of EMX */
+#define _SYS__TYPES_H_
+#endif
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
@@ -106,6 +118,9 @@
 #include "grow.h"
 #include "weakld.h"
 
+#ifndef __EMX__
+#include "crossemx.h"
+#endif
 
 /*******************************************************************************
 *   Structures and Typedefs                                                    *
@@ -129,7 +144,7 @@ typedef struct OMFLIBHDR
 {
   unsigned char     chType;
   unsigned short    cb;
-  unsigned long     offDict;
+  unsigned int      offDict;        /* komh: was unsigned long */
   unsigned short    cDictBlocks;
   unsigned char     fchFlags;
 } OMFLIBHDR, *POMFLIBHDR;
@@ -139,7 +154,7 @@ typedef struct OMFLIBHDR
 #pragma pack(1)
 typedef struct OMFLIBHDRX
 {
-  unsigned long     offDict;
+  unsigned int      offDict;        /* komh: was unsigned long */
   unsigned short    cDictBlocks;
   unsigned char     fchFlags;
 } OMFLIBHDRX, *POMFLIBHDRX;
@@ -295,9 +310,9 @@ typedef struct wldsym
         struct comm_data
         {
             /** Size of comm object */
-            signed long         cb;
+            signed int          cb;             /* komh: was signed long */
             /** Number of elements. */
-            signed long         cElements;
+            signed int          cElements;      /* komh: was signed long */
         } comm;
     } u;
 
@@ -819,8 +834,8 @@ static int          libLoadUndefSymbols(PWLD pWld, PWLDLIB pLib, PWLDSYM pSym, u
                 signed char *       pch;
                 unsigned short *    pus;
                 signed short *      ps;
-                unsigned long *     pul;
-                signed long *       pl;
+                unsigned int *      pul;        /* komh: was unsigned long */
+                signed int *        pl;         /* komh: was signed long */
                 void *              pv;
             } u, u1, u2;
 
@@ -981,6 +996,18 @@ static int          libLoadUndefSymbols(PWLD pWld, PWLDLIB pLib, PWLDSYM pSym, u
                 pWld->ppObjsAdd = &pMod->pNext;
 
                 rc = pass1ReadOMFMod(pWld, pMod, 1);
+                /*
+                 * komh:
+                 * Close module here, otherwise crashes in WLDDestroy() if
+                 * pMod->phFile is the same as pLib->phFile here.
+                 * Because libClose() calls fclose() for pLib->phFile and set
+                 * it to NULL, and modClose() calls fclose() for pMod->phFile
+                 * if !pLib and pLib->phFile != pMod->phFile, but  pLib->phFile
+                 * is already NULL and pMod->phFile has the old value of
+                 * pLib->phFile already closed by fclose(). As a result,
+                 * CRASH!
+                 * */
+                modClose(pMod);
                 if (rc)
                 {
                     libErr(pLib, "Failed when reading module at offset %x.", (int)offCurMod);
@@ -1517,7 +1544,7 @@ static const char *symGetDescr(PWLDSYM pSym)
         case WLDSF_UNDEF:   psz += sprintf(psz, "UNDEF"); break;
         case WLDSF_WKEXT:   psz += sprintf(psz, "WKEXT"); break;
         case WLDSF_EXP_NM:  psz += sprintf(psz, "EXPORT"); break;
-        default:            psz += sprintf(psz, "!!!internal error!!! "); __asm__("int $3"); break;
+        default:            psz += sprintf(psz, "!!!internal error!!! "); INT3H(); break;
     }
     if (pSym->fFlags & WLDSF_WEAK)
         psz += sprintf(psz, " WEAK");
@@ -2294,8 +2321,8 @@ static unsigned     pass1ReadOMFMod(PWLD pWld, PWLDMOD pMod, int fLibSearch)
             char *              pch;
             unsigned short *    pus;
             short *             ps;
-            unsigned long *     pul;
-            long *              pl;
+            unsigned int *      pul;    /* komh: was unsigned long */
+            int *               pl;     /* komh: was long */
             void *              pv;
         } u, u1, u2, u3;
 
@@ -2569,7 +2596,7 @@ static unsigned     pass1ReadOMFMod(PWLD pWld, PWLDMOD pMod, int fLibSearch)
                 goto failure;
             default:
                 fprintf(stderr, "we shall not be here!!\n");
-                __asm__("int $3");
+                INT3H();
                 break;
         }
 
@@ -3667,7 +3694,11 @@ static int      wldTempFile(PWLD pWld, char *pszFile, const char *pszPrefix, con
         if (c++ >= 200)
             return -1;
         gettimeofday(&tv, NULL);
+#ifdef __EMX__
         sprintf(pszFile, "%s\\%s%x%x%d%lx%s", s_szTmp, pszPrefix, pid, tv.tv_sec, c, tv.tv_usec, pszSuffix);
+#else
+        sprintf(pszFile, "%s/%s%x%llx%d%lx%s", s_szTmp, pszPrefix, pid, (long long)tv.tv_sec, c, tv.tv_usec, pszSuffix);
+#endif
     } while (!stat(pszFile, &s));
 
     return 0;

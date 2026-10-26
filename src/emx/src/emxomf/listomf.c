@@ -405,7 +405,7 @@ static void dump_block (int count, int indent, int foff)
       if (x == 0)
         {
           if (foff)
-            printf ("%*s%08lx %03x:", indent, "",
+            printf ("%*s%08zu %03zu:", indent, "",
                     rec_pos + rec_idx - 1 + sizeof (struct omf_rec),
                     rec_idx - 1 + sizeof (struct omf_rec));
           else
@@ -455,7 +455,7 @@ static void list_libhdr (void)
   page_size = rec_len + 1 + 3;
   printf ("  Page size: %u\n", page_size);
   dict_offset = get_dword ();
-  printf ("  Dictionary offset: 0x%lx\n", dict_offset);
+  printf ("  Dictionary offset: 0x%x\n", dict_offset);
   dict_blocks = get_word ();
   printf ("  Dictionary blocks: %u\n", dict_blocks);
   flags = get_byte ();
@@ -743,7 +743,7 @@ static void list_segdef (void)
     }
   if (attributes & 1)
     printf (" USE32");
-  printf (" Length: %#lx", length);
+  printf (" Length: %#x", length);
   printf (" CLASS ");
   show_name (class);
   printf ("\n");
@@ -824,7 +824,7 @@ static void list_pubdef (void)
       show_string (name);
       offset = get_word_or_dword ();
       type = get_index ();
-      printf (", offset: %#lx, type: %d\n", offset, type);
+      printf (", offset: %#x, type: %d\n", offset, type);
       ++pub_count;
     }
 }
@@ -851,11 +851,11 @@ static void list_comdef (void)
         case 0x61:
           comm_count = get_commlen ();
           comm_len = get_commlen ();
-          printf ("FAR, %lu times %lu bytes\n", comm_count, comm_len);
+          printf ("FAR, %u times %u bytes\n", comm_count, comm_len);
           break;
         case 0x62:
           comm_len = get_commlen ();
-          printf ("NEAR, %lu bytes\n", comm_len);
+          printf ("NEAR, %u bytes\n", comm_len);
           break;
         default:
           printf ("unknown data type: %#x\n", data_type);
@@ -922,7 +922,7 @@ static void list_symbols (void)
           if (rec_idx < rec_len)
             {
               length = get_dword ();
-              printf ("offset: %#lx [@%#x], length: %#lx",
+              printf ("offset: %#x [@%#x], length: %#x",
                       offset, location, length);
               if (rec_idx < rec_len)
                 {
@@ -932,7 +932,7 @@ static void list_symbols (void)
                 }
             }
           else
-            printf ("offset: %#lx [@%#x], no length",
+            printf ("offset: %#x [@%#x], no length",
                     offset, location);
           break;
         case 0x01:
@@ -971,9 +971,9 @@ static void list_symbols (void)
               get_string (name);
               show_string (name);
             }
-          printf (", offset: %#lx [@%#x], type: #%lu\n",
+          printf (", offset: %#x [@%#x], type: #%u\n",
                   offset, location, type);
-          printf ("       length: %#lx, pro: %#lx, pro+body: %#lx, ",
+          printf ("       length: %#x, pro: %#x, pro+body: %#x, ",
                   length, prologue, body);
           switch (near_far)
             {
@@ -990,11 +990,11 @@ static void list_symbols (void)
               printf ("32-bit far");
               break;
             default:
-              printf ("nf: %#lx", near_far);
+              printf ("nf: %#x", near_far);
               break;
             }
           if (sst == 0x1a)      /* Member function */
-            printf ("\n       class type: #%lu", class_type);
+            printf ("\n       class type: #%u", class_type);
           break;
         case 0x02:
           printf ("End");
@@ -1005,7 +1005,7 @@ static void list_symbols (void)
           type = get_word ();
           get_string (name);
           show_string (name);
-          printf (", offset: %#lx, type: #%lu", offset, type);
+          printf (", offset: %#x, type: #%u", offset, type);
           break;
         case 0x05:
         case 0x1e:
@@ -1024,7 +1024,7 @@ static void list_symbols (void)
               get_string (name);
               show_string (name);
             }
-          printf (", offset: %#lx [@%#x], seg: %u [@%#x], type: #%lu",
+          printf (", offset: %#x [@%#x], seg: %u [@%#x], type: #%u",
                   offset, location, seg, location + 4, type);
           break;
         case 0x0b:
@@ -1033,7 +1033,7 @@ static void list_symbols (void)
           offset = get_dword ();
           near_far = get_byte ();
           get_string (name);
-          printf ("offset: %#lx [@%#x]", offset, location);
+          printf ("offset: %#x [@%#x]", offset, location);
           show_string (name);
           break;
         case 0x0c:
@@ -1161,10 +1161,10 @@ static void list_symbols (void)
             case 0x85:
             case 0x86:
             case 0x87:
-              printf ("ST(%lu)", reg - 0x80);
+              printf ("ST(%u)", reg - 0x80);
               break;
             default:
-              printf ("unknown register: %#.2lx", reg);
+              printf ("unknown register: %#.2x", reg);
             }
           break;
         case 0x0e:
@@ -1179,7 +1179,7 @@ static void list_symbols (void)
           seg = get_word ();
           reserved = get_word ();
           printf ("segment: %u [@%#x]", seg, location);
-          printf (", reserved: %#lx", reserved);
+          printf (", reserved: %#x", reserved);
           break;
         case 0x12:
           printf ("Typedef");
@@ -1190,7 +1190,7 @@ static void list_symbols (void)
         case 0x14:
           printf ("Member ");
           offset = get_dword ();
-          printf ("offset: %#lx, name: ", offset);
+          printf ("offset: %#x, name: ", offset);
           get_string (name);
           show_string (name);
           break;
@@ -1198,14 +1198,14 @@ static void list_symbols (void)
           printf ("Based ");
           offset = get_dword ();
           type = get_word ();
-          printf ("offset: %#lx, type: #%lu, name: ", offset, type);
+          printf ("offset: %#x, type: #%u, name: ", offset, type);
           get_string (name);
           show_string (name);
           break;
         case 0x16:
           printf ("Tag ");
           type = get_word ();
-          printf ("type: #%lu, name: ", type);
+          printf ("type: #%u, name: ", type);
           get_string (name);
           show_string (name);
           break;
@@ -1223,7 +1223,7 @@ static void list_symbols (void)
         case 0x19:
           printf ("Class ");
           type = get_word ();
-          printf ("type: #%lu, name: ", type);
+          printf ("type: #%u, name: ", type);
           show_enc ();
           break;
         case 0x1b:
@@ -1233,7 +1233,7 @@ static void list_symbols (void)
           line = get_dword ();
           type = get_word ();
           get_string (name);
-          printf ("offset: %#lx, source file: %u, line: %lu, type: #%lu\n",
+          printf ("offset: %#x, source file: %u, line: %u, type: #%u\n",
                   offset, file, line, type);
           printf ("    name: ");
           show_string (name);
@@ -1246,8 +1246,8 @@ static void list_symbols (void)
           line = get_dword ();
           type = get_word ();
           get_string (name);
-          printf ("offset: %#lx, segment: %u, source file: %u, "
-                  "line: %lu, type: %lu\n",
+          printf ("offset: %#x, segment: %u, source file: %u, "
+                  "line: %u, type: %u\n",
                   offset, seg, file, line, type);
           printf ("    name: ");
           show_string (name);
@@ -1270,7 +1270,7 @@ static void list_symbols (void)
               printf ("PL/I");
               break;
             default:
-              printf ("unknown compiler id: %#lx", compiler_id);
+              printf ("unknown compiler id: %#x", compiler_id);
               break;
             }
           printf (", options: ");
@@ -1399,7 +1399,7 @@ static void show_fid (void)
       break;
     case 0x86:
       d = get_dword ();
-      printf ("%lu", d);
+      printf ("%u", d);
       break;
     case 0x88:
       i = get_byte ();
@@ -1415,7 +1415,7 @@ static void show_fid (void)
       break;
     case 0x8a:
       d = get_dword ();
-      printf ("%ld", d);
+      printf ("%d", d);
       break;
     case 0x8b:
       i = get_byte ();
@@ -1479,7 +1479,7 @@ static void list_types (void)
             printf ("(qual: %#x) ", qual);
           size = get_dword ();
           fields = get_word ();
-          printf ("size: %#lx, %d items: ", size, fields);
+          printf ("size: %#x, %d items: ", size, fields);
           printf ("#%u, name: ", get_word());
           show_enc ();
           printf ("\n");
@@ -1654,7 +1654,7 @@ static void list_types (void)
           if (qual & ~0x03)
             printf ("qual: %#x, ", qual);
           size = get_dword ();
-          printf ("size: %#lx, name: ", size);
+          printf ("size: %#x, name: ", size);
           show_fid ();
           printf ("\n");
           dump_rest ();
@@ -1737,7 +1737,7 @@ static void list_types (void)
           if (qual & ~7)
             printf ("(qual: %#x) ", qual);
           size = get_dword ();
-          printf ("size: %#lx, bounds type: ", size);
+          printf ("size: %#x, bounds type: ", size);
           show_fid ();
           printf (", elements type: ");
           show_fid ();
@@ -1753,7 +1753,7 @@ static void list_types (void)
             printf ("(qual: %#x) ", qual);
           size = get_dword ();
           fields = get_word ();
-          printf ("size: %#lx, %d fields: ", size, fields);
+          printf ("size: %#x, %d fields: ", size, fields);
           show_fid ();
           printf (", names: ");
           show_fid ();
@@ -1876,7 +1876,7 @@ static void list_ledata (void)
 
   printf (" ");
   show_seg (seg);
-  printf (" offset: %#lx length: %#x\n", offset, len);
+  printf (" offset: %#x length: %#x\n", offset, len);
   name = lname_list[segment_list[seg-1].name-1];
   if (strcmp (name, "$$SYMBOLS") == 0 && list_debug
       && debug_info == debug_hll && hll_style >= 3)
@@ -1900,13 +1900,13 @@ static void list_block (int level)
   if (block_count == 0)
     {
       len = get_byte ();
-      printf ("%*sRepeat count: %lu, data length: %d\n",
+      printf ("%*sRepeat count: %u, data length: %d\n",
               indent, "", rep_count, len);
       dump_block (len, indent + 2, 0);
     }
   else
     {
-      printf ("%*sRepeat count: %lu, block count: %lu\n",
+      printf ("%*sRepeat count: %u, block count: %u\n",
               indent, "", rep_count, block_count);
       while (block_count > 0)
         {
@@ -1928,7 +1928,7 @@ static void list_lidata (void)
 
   printf (" ");
   show_seg (seg);
-  printf (" offset: %#lx length: %#x\n", offset, rec_len - rec_idx);
+  printf (" offset: %#x length: %#x\n", offset, rec_len - rec_idx);
   while (rec_len - rec_idx >= 4)
     list_block (0);
   dump_rest ();
@@ -2062,7 +2062,7 @@ static void list_fixupp (void)
               list_target (fix_data & 3);
             }
           if (!(fix_data & 0x04))
-            printf (", disp: %#lx", get_word_or_dword ());
+            printf (", disp: %#x", get_word_or_dword ());
         }
       else
         {
@@ -2098,7 +2098,7 @@ static void list_hll_linnum (void)
       printf (", ");
       line = get_word ();
       if (line != 0)
-        printf ("must_be_zero: %ld, ", line);
+        printf ("must_be_zero: %d, ", line);
       linnum_entry_type = get_byte ();
       switch (linnum_entry_type)
         {
@@ -2126,7 +2126,7 @@ static void list_hll_linnum (void)
       line_count = get_word ();
       segment = get_word ();
       names_length = get_dword ();
-      printf ("%d line%s, segment: %u, name table length: %#lx",
+      printf ("%d line%s, segment: %u, name table length: %#x",
               line_count, (line_count == 1 ? "" : "s"), segment, names_length);
       linnum_started = TRUE;
       linnum_files = linnum_file_idx = 0;
@@ -2148,13 +2148,13 @@ static void list_hll_linnum (void)
               src_line = get_word ();
               index = get_word ();
               addr = get_dword ();
-              printf ("  Line %6u of file %u at 0x%.8lx", src_line, index, addr);
+              printf ("  Line %6u of file %u at 0x%.8x", src_line, index, addr);
               break;
             case 0x01:
               lst_line = get_dword ();
               stmt = get_dword ();
               addr = get_dword ();
-              printf ("  Line %6lu, statement %6lu at 0x%.8lx",
+              printf ("  Line %6u, statement %6u at 0x%.8x",
                       lst_line, stmt, addr);
               break;
             case 0x02:
@@ -2164,7 +2164,7 @@ static void list_hll_linnum (void)
               stmt = get_dword ();
               addr = get_dword ();
               printf ("  Line %6u of file %u, ", src_line, index);
-              printf ("listing line %6lu, statement %6lu at 0x%.8lx",
+              printf ("listing line %6u, statement %6u at 0x%.8x",
                       lst_line, stmt, addr);
               break;
             case 0x03:
@@ -2193,7 +2193,7 @@ static void list_hll_linnum (void)
           first_col = get_dword ();
           num_cols = get_dword ();
           linnum_files = get_dword ();
-          printf ("  first column: %lu, columns: %lu, number of files: %d\n",
+          printf ("  first column: %u, columns: %u, number of files: %d\n",
                   first_col, num_cols, linnum_files);
           linnum_file_idx = 0;
         }
@@ -2240,7 +2240,7 @@ static void list_modend (FILE *f)
           list_target (end_data & 3);
         }
       if (!(end_data & 0x04))   /* This bit must always be clear! */
-        printf (", disp: %#lx", get_word_or_dword ());
+        printf (", disp: %#x", get_word_or_dword ());
     }
   printf ("\n");
   dump_rest ();

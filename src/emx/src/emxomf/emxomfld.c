@@ -21,24 +21,44 @@ the Free Software Foundation, 59 Temple Place - Suite 330,
 Boston, MA 02111-1307, USA.  */
 
 
+#if !defined __EMX__ && !defined __APPLE__
+/* disable to include sys/types.h of EMX */
+#define _SYS__TYPES_H_
+#endif
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <alloca.h>
 #include <errno.h>
 #include <string.h>
 #include <process.h>
+#ifdef __EMX__
 #include <io.h>
+#else
+#include <unistd.h>
+#endif
 #include <fcntl.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/time.h>
 #include <sys/utime.h>
 #include <sys/moddef.h>
 #include <getopt.h>
 #include <alloca.h>
 #include <sys/omflib.h>
+#ifdef __EMX__
 #include <InnoTekLIBC/FastInfoBlocks.h>
+#endif
 #include "defs.h"
 #include "weakld.h"
+
+#ifdef __EMX__
+#define EXEEXT ".exe"
+#else
+#include "crossemx.h"
+
+#define EXEEXT ""
+#endif
 
 #define FALSE 0
 #define TRUE  1
@@ -157,21 +177,37 @@ static int stack_size_flag = 0;
 
 /* The name of the linker to use.  By default, ilink is used.  This
    can be overridden with the EMXOMFLD_LINKER environment variable. */
+#ifdef __EMX__
 static const char *linker_name = "ilink.exe";
+#else
+static const char *linker_name = "wl";
+#endif
 
 /* The type of linker to use. By default we assume it's VAC365 or later
    version of ilink. This can be overridden with the EMXOMFLD_TYPE env.
    var. using any of the values WLINK, VAC365, VAC308 and LINK386. */
+#ifdef __EMX__
 static const char *linker_type = "VAC365";
+#else
+static const char *linker_type = "WLINK";
+#endif
 
 /* The name of the resource compiler to use.  By default, rc is used.
    This can be overridden with the EMXOMFLD_RC environment variable. */
+#ifdef __EMX__
 static const char *rc_name = "rc.exe";
+#else
+static const char *rc_name = "wrc";
+#endif
 
 /* The type of resource compiler to use. By default we assume it's
    IBM resource compiler. This can be overridden with the EMXOMFLD_RC_TYPE
    env. var. using any of the values RC, WRC. */
+#ifdef __EMX__
 static const char *rc_type = "RC";
+#else
+static const char *rc_type = "WRC";
+#endif
 
 /* Non-zero if emxomfld should automatically convert a.out objects and
    archives to the OMF equivalents during linking. */
@@ -307,6 +343,25 @@ static void open_response_file(void)
         exit (2);
       }
     close(fd);
+#ifndef __EMX__
+    /* komh: wlink on Linux does not like a file name without an extention.
+       Appending '.' is not enough. */
+    if (!stricmp (linker_type, "WLINK"))
+      {
+        char wl_response_fname[L_tmpnam];
+
+        strcpy (wl_response_fname, response_fname);
+        strcat (wl_response_fname, ".lnk");
+        if (rename (response_fname, wl_response_fname) == -1)
+          {
+            perror ("emxomfld");
+            exit (2);
+          }
+
+        strcpy (response_fname, wl_response_fname);
+      }
+
+#endif
     response_file = fopen (response_fname, "wt");
     if (response_file == NULL)
       {
@@ -320,8 +375,10 @@ static void open_response_file(void)
     command_line[line_len++] = ' ';
     command_line[line_len++] = '@';
     strcpy (command_line+line_len, response_fname);
+#ifdef __EMX__
     if (!stricmp (linker_type, "WLINK"))
       strcat (command_line, ".");
+#endif
 
     if (force_response_file)
       force_response_file = FALSE;
@@ -332,11 +389,13 @@ static void open_response_file(void)
 
 static void conv_path (char *name)
 {
+#ifdef __EMX__
   char *p;
 
   for (p = name; *p != 0; ++p)
     if (*p == '/')
       *p = '\\';
+#endif
 }
 
 
@@ -587,7 +646,7 @@ static int check_omf(FILE *phFile)
  */
 static int check_lx_dll(FILE *phFile)
 {
-    unsigned long   ul;
+    unsigned int    ul;             /* komh: was unsigned long */
     char            achMagic[2];
 
     if (    fseek(phFile, 0, SEEK_SET)
@@ -687,7 +746,11 @@ static int      make_tempfile(char *pszFile, const char *pszPrefix, const char *
         if (c++ >= 200)
             return -1;
         gettimeofday(&tv, NULL);
+#ifdef __EMX__
         sprintf(pszFile, "%s\\%s%s%x%x%d%lx%s", s_szTmp, pszPrefix, pszLooklike, pid, tv.tv_sec, c, tv.tv_usec, pszSuffix);
+#else
+        sprintf(pszFile, "%s/%s%s%x%llx%d%lx%s", s_szTmp, pszPrefix, pszLooklike, pid, (long long) tv.tv_sec, c, tv.tv_usec, pszSuffix);
+#endif
     } while (!stat(pszFile, &s));
 
     return 0;
@@ -731,7 +794,7 @@ static FILE *aout_to_omf(FILE *pf, char *pszFilename, int fLibrary)
     /*
      * Do the conversion.
      */
-    rc = spawnlp(P_WAIT, "emxomf.exe", "emxomf.exe", "-o", pszNewFile, pszFilename, NULL);
+    rc = spawnlp(P_WAIT, "emxomf" EXEEXT, "emxomf" EXEEXT, "-o", pszNewFile, pszFilename, NULL);
     if (!rc)
     {
         /* open the file */
@@ -798,7 +861,7 @@ static FILE *lx_to_omf(FILE *pf, char *pszFilename)
     /*
      * Do the conversion.
      */
-    rc = spawnlp(P_WAIT, "emximp.exe", "emximp.exe", "-o", pszNewFile, pszFilename, NULL);
+    rc = spawnlp(P_WAIT, "emximp" EXEEXT, "emximp" EXEEXT, "-o", pszNewFile, pszFilename, NULL);
     if (!rc)
     {
         /* open the file */
@@ -860,8 +923,12 @@ static FILE *find_obj(char *pszFullname, const char *pszName)
     }
 
     psz = pszFullname;
+#ifdef __EMX__
     while ((psz = strchr(psz, '/')) != NULL)
       *psz++ = '\\';
+#else
+    (void) psz; /* make compiler happy */
+#endif
 
     /*
      * Try open the file.
@@ -977,7 +1044,11 @@ static FILE *find_lib(char *pszFullname, const char *pszName, int fShared)
     if (!fPath)
     {
         cchCurPath = 2;
+#ifdef __EMX__
         memcpy(pszFullname, ".\\", 2);
+#else
+        memcpy(pszFullname, "./", 2);
+#endif
     }
     pszLibPath = getenv("LIB");
     do
@@ -1029,9 +1100,11 @@ static FILE *find_lib(char *pszFullname, const char *pszName, int fShared)
                         free(pszTmp);
                     }
 
+#ifdef __EMX__
                     /* Replace forward slashes with backslashes (link386). */
                     while ((pszFullname = strchr(pszFullname, '/')) != NULL)
                       *pszFullname++ = '\\';
+#endif
                     return phFile;
                 }
             } /* next prefix */
@@ -1059,7 +1132,11 @@ static FILE *find_lib(char *pszFullname, const char *pszName, int fShared)
                 /* Append last slash if it is not there */
                 if (   pszFullname[cchCurPath - 1] != '/'
                     && pszFullname[cchCurPath - 1] != '\\')
+#ifdef __EMX__
                     pszFullname[cchCurPath++] = '\\';
+#else
+                    pszFullname[cchCurPath++] = '/';
+#endif
                 break;
               }
             if (!*psz)
@@ -1284,7 +1361,7 @@ static void gen_deffile(void)
                     "DATA MULTIPLE\n"
                     "CODE SHARED\n"
                     "\n",
-                    cchName, pszName);
+                    (int)cchName, pszName);
             fclose(pFile);
             def_fname = psz;
             if (opt_t)
@@ -1295,7 +1372,7 @@ static void gen_deffile(void)
                         "DATA MULTIPLE NONSHARED\n"
                         "CODE SINGLE SHARED\n"
                         "---- End of generated def-file.\n",
-                        psz, cchName, pszName);
+                        psz, (int)cchName, pszName);
 
             /* add to auto delete list for removal on exit(). */
             pName->next = conv_list;
@@ -1647,8 +1724,12 @@ int main (int argc, char *argv[])
 
   /* Get options from response files (@filename) and wildcard (*.o) on the command. */
 
+#ifdef __EMX__
   _response (&argc, &argv);
   _wildcard (&argc, &argv);
+#else
+  expandargv (&argc, &argv);
+#endif
 
   /* Close and delete the response file on exit. */
 
@@ -2458,6 +2539,7 @@ int main (int argc, char *argv[])
 
       /* Invoke mapsym.cmd writing the .sym file to current directory. */
       arg_init (TRUE);
+#ifdef __EMX__
       if (getenv ("COMSPEC"))
         put_arg (getenv ("COMSPEC"), TRUE, FALSE);
       else
@@ -2470,6 +2552,11 @@ int main (int argc, char *argv[])
          put_arg ("link386", TRUE, FALSE);
       else
          put_arg ("vac3xx", TRUE, FALSE);
+#else
+      put_arg ("kmapsym", TRUE, FALSE);
+      /* On non-OS/2 platforms, only wlink is supproted. */
+      put_arg ("-w", TRUE, FALSE);
+#endif
       put_arg (map_fname_fullpath, TRUE, FALSE);
       arg_end ();
       rc = emxomfld_spawn (command_line, "Mapsym");

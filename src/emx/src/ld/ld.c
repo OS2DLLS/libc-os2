@@ -29,9 +29,16 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
+#include <stdint.h>
 #include <limits.h>
+#ifdef __EMX__
 #include <io.h>
+
 #include <process.h>
+#else
+#include <unistd.h>
+#include <sys/wait.h>
+#endif
 #include <errno.h>
 #include <utime.h>
 #include <ctype.h>
@@ -42,9 +49,7 @@
 #include <sys/time.h>
 #include <sys/resource.h>
 #endif
-#ifdef __EMX__
 #include <string.h>
-#endif
 #include "libiberty.h"
 
 #if !defined(A_OUT)
@@ -59,6 +64,10 @@
 #define _System
 #endif
 extern int _System DosCopy (char *, char *, int);
+
+#ifndef __EMX__
+#include "crossemx.h"
+#endif
 
 /* We need .data of every module aligned to at least 16 bound
    in order to support the alignments required by SSE. 
@@ -80,7 +89,7 @@ extern int _System DosCopy (char *, char *, int);
 /* Always use the GNU version of debugging symbol type codes, if possible.  */
 
 #include "stab.h"
-#define CORE_ADDR unsigned long	/* For symseg.h */
+#define CORE_ADDR uint32_t		/* For symseg.h */
 #include "symseg.h"
 
 #include <strings.h>
@@ -128,6 +137,12 @@ char *progname;
 /* This is called L_INCR in BSD, but SEEK_CUR in POSIX.  */
 #ifndef SEEK_CUR
 #define SEEK_CUR 1
+#endif
+
+#ifdef __EMX__
+#define EXEEXT ".exe"
+#else
+#define EXEEXT ""
 #endif
 
 /*
@@ -400,7 +415,7 @@ typedef
       /* Name of this symbol.  */
       char *name;
       /* Value of this symbol as a global symbol.  */
-      long value;
+      intptr_t value;
       /* Chain of external 'nlist's in files for this symbol, both defs
 	 and refs.  */
       struct nlist *refs;
@@ -468,6 +483,9 @@ int local_sym_count;
 /* Count number of nlist entries that are for local symbols
    whose names don't start with L. */
 int non_L_local_sym_count;
+
+/* Count the number of nlist entries for __declspec(dllexport). */
+int dllexport_sym_count;
 
 /* Count the number of nlist entries for debugger info.  */
 int debugger_sym_count;
@@ -573,36 +591,36 @@ struct file_entry {
   /* Describe the layout of the contents of the file.  */
 
   /* The text section. */
-  unsigned long int orig_text_address;
-  unsigned long int text_size;
-  long int text_offset;
+  uint32_t orig_text_address;
+  uint32_t text_size;
+  int32_t text_offset;
 
   /* Text relocation. */
-  unsigned long int text_reloc_size;
-  long int text_reloc_offset;
+  uint32_t text_reloc_size;
+  int32_t text_reloc_offset;
 
   /* The data section. */
-  unsigned long int orig_data_address;
-  unsigned long int data_size;
-  long int data_offset;
+  uint32_t orig_data_address;
+  uint32_t data_size;
+  int32_t data_offset;
 
   /* Data relocation. */
-  unsigned long int data_reloc_size;
-  long int data_reloc_offset;
+  uint32_t data_reloc_size;
+  int32_t data_reloc_offset;
 
   /* The bss section. */
-  unsigned long int orig_bss_address;
-  unsigned long int bss_size;
+  uint32_t orig_bss_address;
+  uint32_t bss_size;
 
   /* The symbol and string tables. */
-  unsigned long int syms_size;
-  long int syms_offset;
-  unsigned long int strs_size;
-  long int strs_offset;
+  uint32_t syms_size;
+  int32_t syms_offset;
+  uint32_t strs_size;
+  int32_t strs_offset;
 
   /* The GDB symbol segment, if any. */
-  unsigned long int symseg_size;
-  long int symseg_offset;
+  uint32_t symseg_size;
+  int32_t symseg_offset;
 
   /* Describe data from the file loaded into core */
 
@@ -697,6 +715,7 @@ int reloc_flag = 0;
 int dll_flag = 0;
 int exe_flag = 0;
 int map_flag = 0;
+int sym_flag = 0;
 int stack_size = 0;
 int emxbind_strip = 0;
 enum exe_bind_type
@@ -747,12 +766,12 @@ int data_reloc_size;		/* total size of data relocation of all input
 				   files.  */
 
 /* The following are computed by write_header().  */
-long int output_text_offset;	/* file offset of the text section.  */
-long int output_data_offset;	/* file offset of the data section.  */
-long int output_trel_offset;	/* file offset of the text relocation info.  */
-long int output_drel_offset;	/* file offset of the data relocation info.  */
-long int output_syms_offset;	/* file offset of the symbol table.  */
-long int output_strs_offset;	/* file offset of the string table.  */
+int32_t output_text_offset;	/* file offset of the text section.  */
+int32_t output_data_offset;	/* file offset of the data section.  */
+int32_t output_trel_offset;	/* file offset of the text relocation info.  */
+int32_t output_drel_offset;	/* file offset of the data relocation info.  */
+int32_t output_syms_offset;	/* file offset of the symbol table.  */
+int32_t output_strs_offset;	/* file offset of the string table.  */
 
 /* The following are incrementally computed by write_syms(); we keep
    them here so we can examine their values afterwards.  */
@@ -760,7 +779,7 @@ unsigned int output_syms_size;	/* total bytes of symbol table output. */
 unsigned int output_strs_size;	/* total bytes of string table output. */
 
 /* This can only be computed after the size of the string table is known.  */
-long int output_symseg_offset;	/* file offset of the symbol segment (if any).  */
+int32_t output_symseg_offset;	/* file offset of the symbol segment (if any).  */
 
 /* Incrementally computed by write_file_symseg().  */
 unsigned int output_symseg_size;
@@ -772,7 +791,7 @@ int set_sect_size;
 
 /* Pointer for in core storage for the above vectors, before they are
    written. */
-unsigned long *set_vectors;
+uint32_t *set_vectors;
 
 int *set_reloc;
 
@@ -912,7 +931,7 @@ void read_a_out_header (int desc, struct file_entry *entry);
 void read_header (int desc, struct file_entry *entry);
 void read_entry_symbols (int desc, struct file_entry *entry);
 void read_entry_strings (int desc, struct file_entry *entry);
-unsigned long contains_symbol (struct file_entry *entry, struct nlist *n_ptr);
+uintptr_t contains_symbol (struct file_entry *entry, struct nlist *n_ptr);
 void process_subentry (int desc, struct file_entry *subentry, struct file_entry *entry, struct file_entry **prev_addr);
 void consider_file_section_lengths (struct file_entry *entry);
 void relocate_file_addresses (struct file_entry *entry);
@@ -932,7 +951,7 @@ void compute_section_offsets (void);
 void compute_more_section_offsets (void);
 void read_relocation (void);
 int assign_string_table_index (char *name);
-unsigned long check_each_file (register unsigned long (*function)(), register int arg);
+uint32_t check_each_file (register uint32_t (*function)(), register int arg);
 static void     gen_deffile (void);
 
 
@@ -943,9 +962,14 @@ main (argc, argv)
      char **argv;
      int argc;
 {
+#ifdef __EMX__
   _response (&argc, &argv);
   _wildcard (&argc, &argv);
   page_size = getpagesize ();
+#else
+  expandargv (&argc, &argv);
+  page_size = 4096;
+#endif
   progname = argv[0];
 
 #ifdef RLIMIT_STACK
@@ -990,6 +1014,7 @@ main (argc, argv)
 
   local_sym_count = 0;
   non_L_local_sym_count = 0;
+  dllexport_sym_count = 0;
   debugger_sym_count = 0;
   undefined_global_sym_count = 0;
   set_symbol_count = 0;
@@ -1081,6 +1106,8 @@ static struct option longopts[] =
   {"Zwin32", 0, 0, 140},        /* Create GUI, CUI Win32 */
   {"Zrsx32", 0, 0, 141},        /* Create Win32/DOS win32 base */
   {"Zemx32", 0, 0, 142},        /* Create Win32/DOS emx base */
+  {"Zdll", 0, 0, 143},          /* Create .dll file */
+  {"Zsym", 0, 0, 144},          /* Create .sym file */
   {"S", 0, 0, 'S'},
   {"T", 1, 0, 'T'},
   {"Ttext", 1, 0, 'T'},
@@ -1279,6 +1306,14 @@ decode_command (argc, argv)
 
         case 142:               /* -Zemx32: Win32/DOS emx base */
           rsxnt_linked = RSXNT_EMX;
+          break;
+
+        case 143:               /* -Zdll */
+          dll_flag = 1;
+          break;
+
+        case 144:               /* -Zsym */
+          sym_flag = 1;
           break;
 
         case 'R':
@@ -1488,7 +1523,7 @@ void print_file_name (struct file_entry *entry, FILE *outfile);
 static void
 each_file (function, arg)
      register void (*function)();
-     register int arg;
+     register intptr_t arg;
 {
   register int i;
 
@@ -1512,15 +1547,15 @@ each_file (function, arg)
    instead, call once for each library member that is being loaded.
 
    FUNCTION receives two arguments: the entry, and ARG.  It must be a
-   function returning unsigned long (though this can probably be fudged). */
+   function returning uint32_t (though this can probably be fudged). */
 
-unsigned long
+uint32_t
 check_each_file (function, arg)
-     register unsigned long (*function)();
+     register uint32_t (*function)();
      register int arg;
 {
   register int i;
-  register unsigned long return_val;
+  register uint32_t return_val;
 
   for (i = 0; i < number_of_files; i++)
     {
@@ -1819,8 +1854,8 @@ read_a_out_header (desc, entry)
   entry->strs_offset = N_STROFF(hdr);
   lseek(desc, entry->starting_offset + entry->strs_offset, 0);
   if (entry->syms_size &&
-      read(desc, (char *) &entry->strs_size, sizeof (unsigned long int))
-      != sizeof (unsigned long int))
+      read(desc, (char *) &entry->strs_size, sizeof (uint32_t))
+      != sizeof (uint32_t))
     fatal_with_file ("failure reading string table size of ", entry);
 
   if (!entry->superfile)
@@ -1880,14 +1915,43 @@ read_entry_symbols (desc, entry)
      struct file_entry *entry;
      int desc;
 {
+  struct ninfo *symbols;
+
   if (!entry->header_read_flag)
     read_header (desc, entry);
 
-  entry->symbols = (struct nlist *) xmalloc (entry->syms_size);
+  symbols = (struct ninfo *) xmalloc (entry->syms_size);
 
   lseek (desc, entry->syms_offset + entry->starting_offset, 0);
-  if (entry->syms_size != read (desc, entry->symbols, entry->syms_size))
+  if (entry->syms_size != read (desc, symbols, entry->syms_size))
     fatal_with_file ("premature end of file in symbols of ", entry);
+  if (sizeof (struct nlist) == sizeof (struct ninfo))
+    entry->symbols = (struct nlist *)symbols;
+  else
+    {
+      int n = entry->syms_size / sizeof (struct ninfo);
+      struct ninfo *p32;
+      struct nlist *p64;
+
+      entry->syms_size = n * sizeof (struct nlist);
+      entry->symbols = (struct nlist *) xmalloc (entry->syms_size);
+
+      p32 = symbols;
+      p64 = entry->symbols;
+      while (n-- > 0)
+        {
+          p64->n_un.n_strx = p32->n_un.n_strx;
+          p64->n_type = p32->n_type;
+          p64->n_other = p32->n_other;
+          p64->n_desc = p32->n_desc;
+          p64->n_value = p32->n_value;
+
+          p32++;
+          p64++;
+        }
+
+      free (symbols);
+    }
 }
 
 /* Read the string table of file ENTRY into core.
@@ -2022,7 +2086,7 @@ enter_file_symbols (entry)
           else if (s) /* hack! */
               p->n_un.n_name = (char*)s;
 #ifdef DEBUG
-          else fprintf(stderr, "dbg-warning: %s - sym %d: '%s' no such symbol...\n",
+          else fprintf(stderr, "dbg-warning: %s - sym %td: '%s' no such symbol...\n",
                        entry->filename,
                        p - entry->symbols,
                        p->n_un.n_strx + entry->strings);
@@ -2036,9 +2100,11 @@ enter_file_symbols (entry)
 	    non_L_local_sym_count++;
 	  local_sym_count++;
 	}
+      else if (p->n_type == N_EXP)
+	dllexport_sym_count++;
       else debugger_sym_count++;
 #ifdef DEBUG_BIRD
-      fprintf(stderr, "dbg: %s sym #%3d: un=%08lx typ=%02x\n",
+      fprintf(stderr, "dbg: %s sym #%3td: un=%08lx typ=%02x\n",
               entry->filename,
               p - entry->symbols,
               p->n_un.n_strx,
@@ -2137,7 +2203,7 @@ enter_global_ref (nlist_p, name, entry)
 	  /* Indirect symbols value should be modified to point
 	     a symbol being equivalenced to. */
 	  nlist_p->n_value
-	    = (unsigned int) getsym ((nlist_p + 1)->n_un.n_strx
+	    = (uintptr_t) getsym ((nlist_p + 1)->n_un.n_strx
 				     + entry->strings);
 	  if ((symbol *) nlist_p->n_value == sp)
 	    {
@@ -2244,7 +2310,7 @@ enter_global_ref (nlist_p, name, entry)
 
       fprintf (stderr, "symbol in ");
       print_file_name (entry, stderr);
-      fprintf (stderr, ": %3d %s %s\n",
+      fprintf (stderr, ": %3td %s %s\n",
                nlist_p - entry->symbols, sp->name, reftype);
       if (free_reftype)
         FREEA (reftype);
@@ -2253,9 +2319,9 @@ enter_global_ref (nlist_p, name, entry)
 
 /* This return 0 if the given file entry's symbol table does *not*
    contain the nlist point entry, and it returns the files entry
-   pointer (cast to unsigned long) if it does. */
+   pointer (cast to uint32_t) if it does. */
 
-unsigned long
+uintptr_t
 contains_symbol (entry, n_ptr)
      struct file_entry *entry;
      register struct nlist *n_ptr;
@@ -2263,7 +2329,7 @@ contains_symbol (entry, n_ptr)
   if (n_ptr >= entry->symbols &&
       n_ptr < (entry->symbols
 	       + (entry->syms_size / sizeof (struct nlist))))
-    return (unsigned long) entry;
+    return (uintptr_t) entry;
   return 0;
 }
 
@@ -2690,8 +2756,8 @@ digest_symbols (void)
 
   /* Make sure the set vectors are aligned properly. */
   {
-    int new_data_size = ((data_size + sizeof(unsigned long) - 1)
-                         & ~(sizeof(unsigned long)-1));
+    int new_data_size = ((data_size + sizeof(uint32_t) - 1)
+                         & ~(sizeof(uint32_t)-1));
 
     set_sect_pad += new_data_size - data_size;
     data_size = new_data_size;
@@ -2706,11 +2772,11 @@ digest_symbols (void)
 	 vector, plus a word for each symbol for a zero at the end of
 	 the vector (for incremental linking).  */
       set_sect_size
-	= (set_symbol_count + 2 * set_vector_count) * sizeof (unsigned long);
+	= (set_symbol_count + 2 * set_vector_count) * sizeof (uint32_t);
       set_sect_start = data_start + data_size;
       data_size += set_sect_size;
-      set_vectors = (unsigned long *) xmalloc (set_sect_size);
-      set_reloc = (int *) xmalloc (set_sect_size / sizeof (unsigned long)
+      set_vectors = (uint32_t *) xmalloc (set_sect_size);
+      set_reloc = (int *) xmalloc (set_sect_size / sizeof (uint32_t)
 				   * sizeof (int));
       setv_fill_count = 0;
     }
@@ -2758,7 +2824,7 @@ digest_symbols (void)
 		  if (!defs++)
 		    {
 		      sp->value = set_sect_start
-			+ setv_fill_count++ * sizeof (unsigned long);
+			+ setv_fill_count++ * sizeof (uint32_t);
 		      sp->defined = N_SETV | N_EXT;
 		      first_definition = p;
 		    }
@@ -2818,7 +2884,7 @@ digest_symbols (void)
 		  sp->defined = N_BSS | N_EXT;
 		  bss_size += com;
 		  if (write_map)
-		    printf ("Allocating common %s: %x at %lx\n",
+		    printf ("Allocating common %s: %x at %tx\n",
 			    sp->name, com, sp->value);
 		}
 	      else
@@ -2831,9 +2897,9 @@ digest_symbols (void)
 	     Reverse the vector itself to put it in file order.  */
 	  if ((sp->defined & ~N_EXT) == N_SETV)
 	    {
-	      unsigned long length_word_index
-		= (sp->value - set_sect_start) / sizeof (unsigned long);
-	      unsigned long i, tmp;
+	      uint32_t length_word_index
+		= (sp->value - set_sect_start) / sizeof (uint32_t);
+	      uint32_t i, tmp;
 
 	      set_reloc[length_word_index] = N_ABS;
 	      set_vectors[length_word_index]
@@ -3007,7 +3073,7 @@ print_symbols (outfile)
 
   fprintf (outfile, "\nFiles:\n\n");
 
-  each_file (describe_file_sections, (int)outfile);
+  each_file (describe_file_sections, (intptr_t)outfile);
 
   fprintf (outfile, "\nGlobal symbols:\n\n");
 
@@ -3019,13 +3085,13 @@ print_symbols (outfile)
 	  if (sp->defined == 1)
 	    fprintf (outfile, "  %s: common, length 0x%x\n", sp->name, sp->max_common_size);
 	  if (sp->defined)
-	    fprintf (outfile, "  %s: 0x%lx\n", sp->name, sp->value);
+	    fprintf (outfile, "  %s: 0x%tx\n", sp->name, sp->value);
 	  else if (sp->referenced)
 	    fprintf (outfile, "  %s: undefined\n", sp->name);
 	}
     }
 
-  each_file (list_file_locals, (int)outfile);
+  each_file (list_file_locals, (intptr_t)outfile);
 }
 
 void
@@ -3038,7 +3104,7 @@ describe_file_sections (entry, outfile)
   if (entry->just_syms_flag)
     fprintf (outfile, " symbols only\n");
   else
-    fprintf (outfile, " text %x(%lx), data %x(%lx), bss %x(%lx) hex\n",
+    fprintf (outfile, " text %x(%x), data %x(%x), bss %x(%x) hex\n",
 	     entry->text_start_address, entry->text_size,
 	     entry->data_start_address, entry->data_size,
 	     entry->bss_start_address, entry->bss_size);
@@ -3094,7 +3160,7 @@ struct line_debug_entry
 
 int next_debug_entry (int use_data_symbols, struct line_debug_entry state_pointer[3]);
 struct line_debug_entry * init_debug_scan (int use_data_symbols, struct file_entry *entry);
-int address_to_line (unsigned long address, struct line_debug_entry state_pointer[3]);
+int address_to_line (uint32_t address, struct line_debug_entry state_pointer[3]);
 void qsort ();
 /*
  * Helper routines for do_file_warnings.
@@ -3247,7 +3313,7 @@ init_debug_scan (use_data_symbols, entry)
 
 int
 address_to_line (address, state_pointer)
-     unsigned long address;
+     uint32_t address;
      /* Next must be passed by reference! */
      struct line_debug_entry state_pointer[3];
 {
@@ -3593,7 +3659,7 @@ do_warnings (outfile)
     /* No need to run this routine */
     return;
 
-  each_file (do_file_warnings, (int)outfile);
+  each_file (do_file_warnings, (intptr_t)outfile);
 
   if (list_unresolved_refs || list_multiple_defs)
     make_executable = 0;
@@ -3695,7 +3761,9 @@ compute_a_out_section_offsets (void)
   if (strip_symbols == STRIP_NONE)
     nsyms += debugger_sym_count;
 
-  outheader.a_syms = nsyms * sizeof (struct nlist);
+  nsyms += dllexport_sym_count;
+
+  outheader.a_syms = nsyms * sizeof (struct ninfo);
 
   if (output_style == OUTPUT_RELOCATABLE || reloc_flag)
     {
@@ -3850,10 +3918,15 @@ void check_exe (void)
   else
     {
       ext = _getext2 (output_filename);
-      if (stricmp (ext, ".dll") == 0)
+      if (dll_flag || stricmp (ext, ".dll") == 0)
         {
+          if (!*ext)
+            output_filename = concat (output_filename, ".dll", NULL);
+
           reloc_flag = 1; dll_flag = 1;
         }
+      else if (!*ext)
+          output_filename = concat (output_filename, ".exe", NULL);
       else if (stricmp (ext, ".exe") != 0)
         {
           exe_filename = NULL;
@@ -3986,6 +4059,14 @@ write_output (void)
           strcat (nargv[i], map_filename);
 	  i++;
 	}
+      if (sym_flag)
+	{
+	  if (!map_flag)
+	    fatal ("%s", "-Zsym without -Zmap.");
+	  freeav[j++] = nargv[i] = ALLOCA (3);
+	  strcpy (nargv[i], "-y");
+	  i++;
+	}
       if (res_filename != NULL)
 	{
 	  freeav[j++] = nargv[i] = ALLOCA (strlen (res_filename) + 3);
@@ -4004,6 +4085,17 @@ write_output (void)
             fprintf(stderr, " %s", nargv[i]);
           fprintf(stderr, "\n");
         }
+#ifndef __EMX__
+      {
+        char path[512];
+
+        /* Try find first in the same directory as ld */
+        _execname (path, sizeof (path));
+        strcpy (_getname (path), "emxbind");
+        i = spawnvp (P_WAIT, path, nargv);
+      }
+      if (i < 0)
+#endif
       i = spawnvp (P_WAIT, "emxbind", nargv);
       saved_errno = errno; unlink (output_filename); errno = saved_errno;
       if (i < 0)
@@ -4282,7 +4374,7 @@ write_data ()
 
   if (set_vector_count)
     mywrite (set_vectors, set_symbol_count + 2 * set_vector_count,
-	     sizeof (unsigned long), outdesc);
+	     sizeof (uint32_t), outdesc);
 
   if (trace_files)
     fprintf (stderr, "\n");
@@ -4496,7 +4588,7 @@ perform_relocation (data, pc_relocation, data_size, reloc_info, reloc_size, entr
 	     Also doesn't deal with differing byte-order.  */
 	  {
 	    /* Thing to relocate.  */
-	    long thing;
+	    int32_t thing;
 	    bcopy (data + addr, &thing, sizeof (thing));
 	    if (RELOC_MEMORY_SUB_P (p))
 	      relocation -= mask & thing;
@@ -4507,11 +4599,11 @@ perform_relocation (data, pc_relocation, data_size, reloc_info, reloc_size, entr
 	  }
 #else /* not CROSS_LINKER */
 	  if (RELOC_MEMORY_SUB_P(p))
-	    relocation -= mask & *(long *) (data + addr);
+	    relocation -= mask & *(int32_t *) (data + addr);
 	  else if (RELOC_MEMORY_ADD_P(p))
-	    relocation += mask & *(long *) (data + addr);
-	  *(long *) (data + addr) &= ~mask;
-	  *(long *) (data + addr) |= relocation;
+	    relocation += mask & *(int32_t *) (data + addr);
+	  *(int32_t *) (data + addr) &= ~mask;
+	  *(int32_t *) (data + addr) |= relocation;
 #endif /* not CROSS_LINKER */
 	  break;
 
@@ -4574,7 +4666,7 @@ write_rel ()
   if (reloc_flag)
     {
       int i;
-      int n = set_sect_size / sizeof (unsigned long);
+      int n = set_sect_size / sizeof (uint32_t);
       struct relocation_info reloc;
 
       memset (&reloc, 0, sizeof (reloc));
@@ -4588,7 +4680,7 @@ write_rel ()
 	  case N_DATA:
 	    RELOC_SYMBOL (&reloc) = set_reloc[i] & ~N_EXT;
 	    RELOC_ADDRESS (&reloc)
-	      = set_sect_start + i * sizeof (unsigned long) - data_start;
+	      = set_sect_start + i * sizeof (uint32_t) - data_start;
 	    mywrite (&reloc, sizeof (reloc), 1, outdesc);
 	    break;
 	  case N_ABS:
@@ -4841,7 +4933,7 @@ write_syms ()
 
   /* Write the local symbols defined by the various files.  */
 
-  each_file (write_file_syms, (int)&syms_written);
+  each_file (write_file_syms, (intptr_t)&syms_written);
   file_close ();
 
   /* Now write out the global symbols.  */
@@ -4949,8 +5041,39 @@ write_syms ()
   /* Output the buffer full of `struct nlist's.  */
 
   lseek (outdesc, output_syms_offset + output_syms_size, 0);
-  mywrite (buf, sizeof (struct nlist), bufp - buf, outdesc);
-  output_syms_size += sizeof (struct nlist) * (bufp - buf);
+  if (sizeof (struct nlist) == sizeof (struct ninfo))
+    {
+      mywrite (buf, sizeof (struct nlist), bufp - buf, outdesc);
+      output_syms_size += sizeof (struct nlist) * (bufp - buf);
+    }
+  else
+    {
+      struct ninfo *buf32;
+
+      struct ninfo *p32;
+      struct nlist *p64;
+
+      buf32 = (struct ninfo *) xmalloc (sizeof (struct ninfo) * (bufp - buf));
+
+      p32 = buf32;
+      p64 = buf;
+      while (p64 < bufp)
+        {
+          p32->n_un.n_strx = p64->n_un.n_strx;
+          p32->n_type = p64->n_type;
+          p32->n_other = p64->n_other;
+          p32->n_desc = p64->n_desc;
+          p32->n_value = p64->n_value;
+
+          p32++;
+          p64++;
+        }
+
+      mywrite (buf32, sizeof (struct ninfo), bufp - buf, outdesc);
+      output_syms_size += sizeof (struct ninfo) * (bufp - buf);
+
+      free (buf32);
+    }
 
   if (syms_written != nsyms)
     fatal ("internal error: wrong number of symbols written into output file", 0);
@@ -5058,6 +5181,9 @@ write_file_syms (entry, syms_written_addr)
 		 && !(discard_locals == DISCARD_L &&
 		      (p->n_un.n_strx + entry->strings)[0] == LPREFIX)
 		 && type != N_WARNING);
+      else if (type == N_EXP)
+	/* __declspec(dllexport) symbol */
+	write = 1;
       else if (!(type & N_EXT))
 	/* debugger symbol */
         write = (strip_symbols == STRIP_NONE);
@@ -5081,8 +5207,39 @@ write_file_syms (entry, syms_written_addr)
   /* All the symbols are now in BUF; write them.  */
 
   lseek (outdesc, output_syms_offset + output_syms_size, 0);
-  mywrite (buf, sizeof (struct nlist), bufp - buf, outdesc);
-  output_syms_size += sizeof (struct nlist) * (bufp - buf);
+  if (sizeof (struct nlist) == sizeof (struct ninfo))
+    {
+      mywrite (buf, sizeof (struct nlist), bufp - buf, outdesc);
+      output_syms_size += sizeof (struct nlist) * (bufp - buf);
+    }
+  else
+    {
+      struct ninfo *buf32;
+
+      struct ninfo *p32;
+      struct nlist *p64;
+
+      buf32 = (struct ninfo *) xmalloc (sizeof (struct ninfo) * (bufp - buf));
+
+      p32 = buf32;
+      p64 = buf;
+      while (p64 < bufp)
+      {
+          p32->n_un.n_strx = p64->n_un.n_strx;
+          p32->n_type = p64->n_type;
+          p32->n_other = p64->n_other;
+          p32->n_desc = p64->n_desc;
+          p32->n_value = p64->n_value;
+
+          p32++;
+          p64++;
+      }
+
+      mywrite (buf32, sizeof (struct ninfo), bufp - buf, outdesc);
+      output_syms_size += sizeof (struct ninfo) * (bufp - buf);
+
+      free (buf32);
+    }
 
   /* Write the string-table data for the symbols just written,
      using the data in vectors `strtab_vector' and `strtab_lens'.  */
@@ -5354,6 +5511,7 @@ void
 perror_name (name)
      char *name;
 {
+#ifdef __EMX__
   char *s;
 
   if (errno < sys_nerr)
@@ -5361,6 +5519,9 @@ perror_name (name)
   else
     s = "cannot open %s";
   fatal (s, name);
+#else
+  fatal ("%s for %s", strerror (errno), name);
+#endif
 }
 
 /* Report a fatal error using the message for the last failed system call,
@@ -5370,6 +5531,7 @@ void
 perror_file (entry)
      struct file_entry *entry;
 {
+#ifdef __EMX__
   char *s;
 
   if (errno < sys_nerr)
@@ -5377,6 +5539,11 @@ perror_file (entry)
   else
     s = "cannot open ";
   fatal_with_file (s, entry);
+#else
+  char s[512];
+  snprintf (s, sizeof (s), "%s for ", strerror (errno ));
+  fatal_with_file (s, entry);
+#endif
 }
 
 /* Report a nonfatal error.
@@ -5507,7 +5674,11 @@ static int      make_tempfile(char *pszFile, const char *pszPrefix, const char *
         if (c++ >= 200)
             return -1;
         gettimeofday(&tv, NULL);
+#ifdef __EMX__
         sprintf(pszFile, "%s\\%s%x%x%d%lx%s", pszTmp, pszPrefix, pid, tv.tv_sec, c, tv.tv_usec, pszSuffix);
+#else
+        sprintf(pszFile, "%s/%s%x%jx%d%lx%s", pszTmp, pszPrefix, pid, (intmax_t) tv.tv_sec, c, tv.tv_usec, pszSuffix);
+#endif
     } while (!stat(pszFile, &s));
 
     return 0;
@@ -5543,7 +5714,7 @@ char *lx_to_aout (const char *pszFilename)
     /*
      * Do the conversion.
      */
-    rc = spawnlp(P_WAIT, "emximp.exe", "emximp.exe",
+    rc = spawnlp(P_WAIT, "emximp" EXEEXT, "emximp" EXEEXT,
                  "-o", pszNewFile, pszFilename, NULL);
     if (!rc)
     {
@@ -5572,7 +5743,7 @@ char *lx_to_aout (const char *pszFilename)
  */
 int check_lx_dll(int fd)
 {
-    unsigned long   ul;
+    uint32_t   ul;
     char            achMagic[2];
 
     if (    lseek(fd, 0, SEEK_SET)
@@ -5639,7 +5810,7 @@ static void gen_deffile(void)
                     "DATA MULTIPLE\n"
                     "CODE SHARED\n"
                     "\n",
-                    cchName, pszName);
+                    (int) cchName, pszName);
             if (trace_files)
                 fprintf(stderr,
                         "--- Generated def-file %s:\n"
@@ -5648,7 +5819,7 @@ static void gen_deffile(void)
                         "DATA MULTIPLE NONSHARED\n"
                         "CODE SINGLE SHARED\n"
                         "---- End of generated def-file.\n",
-                        psz, cchName, pszName);
+                        psz, (int) cchName, pszName);
             fclose(pFile);
             def_filename = psz;
 
