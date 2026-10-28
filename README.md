@@ -23,3 +23,11 @@ Note that we also have a project named LIBCx (https://github.com/bitwiseworks/li
 The general plan for LIBC Next is to eventually incorporate all LIBCx code into this repository. And then merge it all with the original kLIBC project if it ever gets resurrected.
 
 We want to thank Knut St. Osmundsen (aka Bird) for his effortful support of OS/2 software throughout many years and especially for his work on the kLIBC project LIBC Next is based on.
+
+## Local Linux-to-OS/2 cross-build
+
+The `/data/Makefile` target `libc-os2` builds the Linux-side EMX helper tools
+out of tree and installs them under the active `OS2EMX_PREFIX` (default
+`/data/os2emx`). The target C runtime and headers remain in the nested sysroot
+`/data/os2emx/i686-pc-os2-emx`, where the cross-compiler expects them. Build
+outputs stay under `/data/build-nix`.

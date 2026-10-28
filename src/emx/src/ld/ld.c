@@ -5498,7 +5498,7 @@ fatal_with_file (string, entry)
      struct file_entry *entry;
 {
   fprintf (stderr, "%s: ", progname);
-  fprintf (stderr, string);
+  fprintf (stderr, "%s", string);
   print_file_name (entry, stderr);
   fprintf (stderr, "\n");
   exit (1);

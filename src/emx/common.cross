@@ -36,7 +36,9 @@ include $(EMXDIR)/version.smak
 OUTDIR ?= $(if $(OS2EMX_BUILD_ROOT),$(patsubst %/,%,$(OS2EMX_BUILD_ROOT))/cross-os2emx/emxtools/i686-pc-os2-emx,$(EMXDIR)/out/i686-pc-os2-emx)
 
 CC := gcc
-CFLAGS := -std=gnu99 -D_GNU_SOURCE -Wall -I. -I$(SRCDIR) \
+# The Nix host compiler promotes legacy format-security diagnostics in these
+# host-side EMX tools to errors; keep them visible but non-fatal for this build.
+CFLAGS := -std=gnu99 -D_GNU_SOURCE -Wall -Wno-error=format-security -I. -I$(SRCDIR) \
           -idirafter $(EMXDIR)/src/libcrossemx \
           -idirafter $(EMXDIR)/src/include -idirafter $(EMXDIR)/include \
           $(CFLAGS.DEF.VERSION) -g
@@ -63,8 +65,9 @@ LIBEXT := .a
 
 .SUFFIXES: .c $(DEPEXT) $(OBJEXT) $(EXEEXT) $(LIBEXT)
 
-PREFIXROOT := $(HOME)
-PREFIX := $(patsubst %/,%,$(PREFIXROOT))/opt/os2emx
+PREFIXROOT ?= $(HOME)
+OS2EMX_PREFIX ?= /data/os2emx
+PREFIX := $(OS2EMX_PREFIX)
 BINDIR := $(PREFIX)/bin
 LIBDIR := $(PREFIX)/lib
 INCDIR := $(PREFIX)/include
@@ -173,3 +176,4 @@ intall-lib:
 install: all
 
 $(foreach t, $(TARGETEXES), $(eval $(call exe_template,$(t))))
+$(foreach t, $(TARGETLIBS), $(eval $(call lib_template,$(t))))

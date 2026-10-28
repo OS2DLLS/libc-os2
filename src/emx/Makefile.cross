@@ -29,6 +29,7 @@ SRCDIR := src
 MAKEFILE_CROSS := Makefile.cross
 
 PREFIXROOT ?= $(HOME)
+OS2EMX_PREFIX ?= /data/os2emx
 
 .PHONY: all build clean install
 
@@ -47,5 +48,5 @@ clean:
 install: build
 	for d in $(SUBDIRS); do \
 	  $(MAKE) -C $(SRCDIR)/$$d -f $(MAKEFILE_CROSS) install \
-	    DESTDIR=$(DESTDIR) PREFIXROOT=$(PREFIXROOT) || exit 1; \
+	    DESTDIR=$(DESTDIR) PREFIXROOT=$(PREFIXROOT) OS2EMX_PREFIX=$(OS2EMX_PREFIX) || exit 1; \
 	done
